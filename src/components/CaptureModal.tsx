@@ -476,7 +476,7 @@ export const CaptureModal: React.FC = () => {
 
               {/* Subtasks Preview List */}
               {subtasks.length > 0 && (
-                <div className="bg-stone-50 dark:bg-stone-850/60 p-4 rounded-2xl border border-stone-200/80 dark:border-stone-700 space-y-2">
+                <div className="bg-stone-50 dark:bg-stone-800/60 p-4 rounded-2xl border border-stone-200/80 dark:border-stone-700 space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
                     <span>Generated Micro-Steps ({subtasks.length})</span>
                     <span className="font-mono text-stone-500">~{estTotalMinutes} min total</span>

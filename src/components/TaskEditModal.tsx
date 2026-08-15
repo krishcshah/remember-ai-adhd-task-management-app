@@ -257,14 +257,14 @@ export const TaskEditModal: React.FC = () => {
           </div>
 
           {/* 3 AI TWEAKER BUTTONS IN EDIT MODAL */}
-          <div className="bg-stone-50 dark:bg-stone-850/60 p-3.5 rounded-2xl border border-stone-200/80 dark:border-stone-800 space-y-2.5">
+          <div className="bg-stone-50 dark:bg-stone-800/60 p-3.5 rounded-2xl border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-stone-600 dark:text-stone-300 uppercase tracking-wider flex items-center gap-1">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
                 AI Task Tweakers
               </span>
               {aiLoading && (
-                <span className="text-[11px] font-medium text-amber-600 animate-pulse">
+                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
                   AI is updating...
                 </span>
               )}
@@ -277,11 +277,11 @@ export const TaskEditModal: React.FC = () => {
                 disabled={aiLoading}
                 className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
                   showCustomPromptBox
-                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
-                    : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-stone-900 dark:hover:text-stone-100'
                 }`}
               >
-                <MessageSquareText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <MessageSquareText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                 <span className="truncate">AI Tweak</span>
               </button>
 
@@ -289,9 +289,9 @@ export const TaskEditModal: React.FC = () => {
                 type="button"
                 onClick={handleApplyBiteSized}
                 disabled={aiLoading}
-                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900 dark:hover:text-teal-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
               >
-                <Scissors className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
                 <span className="truncate">Bite-Sized</span>
               </button>
 
@@ -299,7 +299,7 @@ export const TaskEditModal: React.FC = () => {
                 type="button"
                 onClick={handleApplyFaster}
                 disabled={aiLoading}
-                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900 dark:hover:text-amber-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
               >
                 <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <span className="truncate">Faster</span>
@@ -317,7 +317,7 @@ export const TaskEditModal: React.FC = () => {
                     if (e.key === 'Enter') handleApplyCustomAiEdit();
                   }}
                   autoFocus
-                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-800 text-stone-800 dark:text-stone-200 focus:outline-none"
+                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-800 border border-amber-300 dark:border-amber-700 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
                 />
                 <button
                   type="button"
@@ -366,7 +366,7 @@ export const TaskEditModal: React.FC = () => {
           </div>
 
           {/* Repeat Schedule Section */}
-          <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-850/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
+          <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center">
                 <Repeat className="w-3.5 h-3.5" />
@@ -382,8 +382,8 @@ export const TaskEditModal: React.FC = () => {
                 onClick={() => setRepeatType('none')}
                 className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
                   repeatType === 'none'
-                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    ? 'bg-teal-800 dark:bg-teal-700 text-white border-teal-800 dark:border-teal-600 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                 }`}
               >
                 None
@@ -393,8 +393,8 @@ export const TaskEditModal: React.FC = () => {
                 onClick={() => setRepeatType('daily')}
                 className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
                   repeatType === 'daily'
-                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    ? 'bg-teal-800 dark:bg-teal-700 text-white border-teal-800 dark:border-teal-600 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                 }`}
               >
                 Daily
@@ -404,8 +404,8 @@ export const TaskEditModal: React.FC = () => {
                 onClick={() => setRepeatType('weekly')}
                 className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
                   repeatType === 'weekly'
-                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    ? 'bg-teal-800 dark:bg-teal-700 text-white border-teal-800 dark:border-teal-600 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                 }`}
               >
                 Weekly
@@ -415,8 +415,8 @@ export const TaskEditModal: React.FC = () => {
                 onClick={() => setRepeatType('weekly_on')}
                 className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
                   repeatType === 'weekly_on'
-                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    ? 'bg-teal-800 dark:bg-teal-700 text-white border-teal-800 dark:border-teal-600 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                 }`}
               >
                 Weekly on...
@@ -434,8 +434,8 @@ export const TaskEditModal: React.FC = () => {
                       onClick={() => toggleRepeatDay(d.id)}
                       className={`h-8 rounded-xl text-[11px] font-bold transition-all ${
                         isSelected
-                          ? 'bg-teal-800 text-white'
-                          : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200'
+                          ? 'bg-teal-800 dark:bg-teal-700 text-white'
+                          : 'bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                       }`}
                     >
                       {d.label}
@@ -563,7 +563,7 @@ export const TaskEditModal: React.FC = () => {
             <button
               type="button"
               onClick={closeEdit}
-              className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900"
+              className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100"
             >
               Cancel
             </button>
