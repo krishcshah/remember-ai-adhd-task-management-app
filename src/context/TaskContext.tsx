@@ -109,6 +109,7 @@ interface TaskContextType {
 
   // Backup & Reset
   resetAllData: () => void;
+  clearAllData: () => void;
   exportDataJSON: () => string;
   importDataJSON: (jsonStr: string) => boolean;
 }
@@ -652,6 +653,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setFocusTask(null);
   }, [setActiveTaskId]);
 
+  const clearAllData = useCallback(() => {
+    setTasks([]);
+    setActiveTaskId(null);
+    setFocusTask(null);
+  }, [setActiveTaskId]);
+
   const exportDataJSON = useCallback((): string => {
     const data = {
       app: 'Remember',
@@ -738,6 +745,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requestBrainDump,
         requestChatEdit,
         resetAllData,
+        clearAllData,
         exportDataJSON,
         importDataJSON,
       }}

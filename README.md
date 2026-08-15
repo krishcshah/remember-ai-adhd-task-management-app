@@ -58,7 +58,7 @@
 - **Cloud Firestore Database:** Multi-tab and multi-device persistence.
 - **Anonymous Device Sync:** Instant zero-config cloud sync without needing an account.
 - **Google Authentication:** Optional cross-device OAuth account sync.
-- **Offline & Local-First:** 100% offline heuristic fallback support with local IndexedDB/LocalStorage caching and JSON export/import.
+- **Offline & Local-First:** 100% offline heuristic fallback support with local caching, JSON export/restore, reset to starter defaults, and full data wipe options.
 
 ---
 

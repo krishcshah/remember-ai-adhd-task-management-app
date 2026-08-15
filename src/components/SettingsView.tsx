@@ -44,6 +44,7 @@ export const SettingsView: React.FC = () => {
     deleteCategory,
     updateSettings,
     resetAllData,
+    clearAllData,
     exportDataJSON,
     importDataJSON,
   } = useTaskContext();
@@ -524,16 +525,16 @@ export const SettingsView: React.FC = () => {
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
           <button
             onClick={handleExport}
-            className="flex-1 min-w-[120px] py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Download className="w-3.5 h-3.5" />
             Export JSON
           </button>
 
-          <label className="flex-1 min-w-[120px] py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
+          <label className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
             <Upload className="w-3.5 h-3.5" />
             <span>Restore JSON</span>
             <input
@@ -548,12 +549,28 @@ export const SettingsView: React.FC = () => {
             onClick={() => {
               if (window.confirm('Reset all tasks back to starter examples?')) {
                 resetAllData();
+                setImportStatus('Starter template restored.');
+                setTimeout(() => setImportStatus(null), 2500);
               }
             }}
-            className="py-2.5 px-3 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
+            className="py-2.5 px-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700/80"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset Defaults
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to clear all tasks? This will wipe your schedule and library clean.')) {
+                clearAllData();
+                setImportStatus('All tasks cleared.');
+                setTimeout(() => setImportStatus(null), 2500);
+              }
+            }}
+            className="py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-rose-200/80 dark:border-rose-900/50"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Clear All Data
           </button>
         </div>
       </div>
