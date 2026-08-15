@@ -158,6 +158,8 @@ export const TaskEditModal: React.FC = () => {
     setTweakingAction('bitesize');
     try {
       const res = await requestBreakdown(title, 1, notes, category);
+      if (res.title) setTitle(res.title);
+      if (res.category) setCategory(res.category);
       setEstMinutes(res.estimatedMinutes);
       setSubtasks(
         res.subtasks.map((s, idx) => ({

@@ -20,7 +20,37 @@ export function getDefaultSettings(): Settings {
     context: 'I have ADHD and struggle with task initiation. Keeping steps ultra-concrete and bite-sized under 15 minutes helps me avoid overwhelm.',
     theme: 'light',
     difficulty: 1, // Default to Small / Bite-size granularity everywhere
+    autoRolloverPending: true, // Auto rollover uncompleted tasks to Today
   };
+}
+
+/**
+ * Rolls over uncompleted/pending past tasks to today's date if auto-rollover is enabled.
+ */
+export function rollOverPastPendingTasks(tasks: Task[]): { updatedTasks: Task[]; rolledCount: number } {
+  const today = getTodayDateString();
+  let rolledCount = 0;
+
+  const updatedTasks = tasks.map((t) => {
+    // Only roll over non-repeating or weekly tasks that have a specific scheduledDate in the past and are still 'todo'
+    if (
+      t.status === 'todo' &&
+      t.scheduledDate &&
+      t.scheduledDate < today &&
+      t.repeatType !== 'daily' &&
+      !t.repeatDaily
+    ) {
+      rolledCount++;
+      return {
+        ...t,
+        scheduledDate: today,
+        notes: t.notes ? `${t.notes} (Rolled over from ${t.scheduledDate})` : `Rolled over from ${t.scheduledDate}`,
+      };
+    }
+    return t;
+  });
+
+  return { updatedTasks, rolledCount };
 }
 
 export function getDefaultInitialTasks(): Task[] {

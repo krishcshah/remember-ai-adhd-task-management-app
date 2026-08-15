@@ -21,6 +21,7 @@ import {
   LogIn,
   LogOut,
   KeyRound,
+  CalendarClock,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -34,7 +35,7 @@ export const SettingsView: React.FC = () => {
     logOut,
     manualCloudSync,
     openAddCategoryModal,
-    deleteCustomCategory,
+    deleteCategory,
     updateSettings,
     resetAllData,
     exportDataJSON,
@@ -93,6 +94,37 @@ export const SettingsView: React.FC = () => {
         </h1>
         <p className="text-xs text-stone-500 dark:text-stone-400">
           Tune your external executive function
+        </p>
+      </div>
+
+      {/* Auto-Rollover Pending Tasks */}
+      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+              <CalendarClock className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-sm">Auto-Rollover Pending Tasks</h2>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                Move yesterday's unfinished tasks to Today automatically
+              </p>
+            </div>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={settings.autoRolloverPending !== false}
+              onChange={(e) => updateSettings({ autoRolloverPending: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-800" />
+          </label>
+        </div>
+
+        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed bg-stone-50 dark:bg-stone-800/60 p-3 rounded-2xl border border-stone-200/70 dark:border-stone-700/70">
+          When enabled, as new days begin, any uncompleted tasks from past dates automatically roll over into your <strong>Today</strong> schedule with a gentle rollover note so no important task gets left behind or lost in the past.
         </p>
       </div>
 
@@ -237,7 +269,7 @@ export const SettingsView: React.FC = () => {
                 {isCustom && (
                   <button
                     type="button"
-                    onClick={() => deleteCustomCategory(cat.id)}
+                    onClick={() => deleteCategory(cat.id)}
                     className="text-stone-400 hover:text-rose-500 p-1 transition-colors"
                     title="Delete category"
                   >

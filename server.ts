@@ -36,7 +36,14 @@ async function startServer() {
   // AI Task Breakdown Endpoint
   app.post("/api/ai/breakdown", async (req, res) => {
     try {
-      const { title, difficulty = 1, context = "", notes = "", category } = req.body;
+      const {
+        title,
+        difficulty,
+        context = "",
+        notes = "",
+        category,
+        availableCategories = [],
+      } = req.body;
 
       if (!title || typeof title !== "string" || !title.trim()) {
         return res.status(400).json({ error: "Task title is required" });
@@ -50,27 +57,40 @@ async function startServer() {
         });
       }
 
-      const difficultyGuide =
-        difficulty === 1
-          ? "Difficulty 1 (Bite-size): Provide 3-4 very small, low-friction steps that reduce task initiation freeze. First step must be ultra-simple."
-          : difficulty === 3
-          ? "Difficulty 3 (Deep): Provide 6-8 micro-steps breaking down complex multi-part tasks in thorough detail."
-          : "Difficulty 2 (Normal): Provide 4-6 balanced, sequential steps.";
+      const categoriesList = Array.isArray(availableCategories) && availableCategories.length > 0
+        ? availableCategories.join(", ")
+        : "work, personal, health, errands, study, other";
 
-      const prompt = `You are Remember, an expert executive-function task assistant.
-Break down this task into clear, sequential, bite-sized subtasks.
+      const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
+When given a raw user task input, your goal is to fully scaffold, organize, and break it down:
 
-Task Title: "${title.trim()}"
+1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI:
+   - Clean up vague, shorthand, or messy phrasing into an inspiring, actionable task title.
+   - Prefix the title with a single relevant, appealing emoji (e.g., "💊 Take morning vitamins & hydrate", "🧹 Declutter and wipe down desk", "📊 Finish quarterly budget report", "🏋️ Leg day strength workout", "🧺 Fold & put away clean laundry", "🛒 Grocery shopping run").
+
+2. SELECT BEST CATEGORY:
+   - Pick the most fitting category identifier from: [${categoriesList}].
+
+3. SMART REPEAT PATTERN:
+   - Determine if this is a recurring habit or routine:
+     * "daily": for daily habits/routines (e.g., vitamins, brush teeth, daily journal, morning walk, stretch, bedtime winddown).
+     * "weekly" or "weekly_on": for tasks on specific days (e.g., trash night, laundry day, gym on Mon/Wed/Fri). Include "repeatDays" as array of day numbers where 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat.
+     * "none": for one-off tasks (e.g., file taxes, call landlord, buy birthday gift).
+
+4. DECIDE SUBTASK GRANULARITY:
+   - If user explicitly specified difficulty (1, 2, or 3), you may respect it. Otherwise smartly decide based on task cognitive complexity:
+     * 1 (Bite-sized, 3-4 micro steps): for high-friction initiation, quick chores, or daily habits to prevent freeze.
+     * 2 (Normal, 4-5 steps): for standard multi-step projects.
+     * 3 (Deep, 6-8 micro-steps): for complex, multi-stage or high-stress projects.
+
+5. GENERATE SUBTASKS:
+   - Every subtask title MUST start with an active imperative verb (e.g., "Open...", "Gather...", "Draft...", "Wipe...", "Check...").
+   - Total estimated minutes should account for real friction.
+
+Input Task: "${title.trim()}"
 ${notes ? `Additional Notes: "${notes}"` : ""}
-${category ? `Suggested Category: "${category}"` : ""}
-${context ? `User Life Context: "${context}"` : ""}
-
-Rules for ADHD/Executive-friendly task breakdown:
-1. Every subtask title MUST start with an active imperative verb (e.g., "Open...", "Gather...", "Draft...", "Write...", "Send...").
-2. ${difficultyGuide}
-3. Account for realistic task-initiation friction and mental transitions in the estimatedMinutes.
-4. Keep the category to one of: "work", "personal", "health", "errands", "study", "other" or custom string.
-5. Return realistic time estimates in minutes (estMinutes for total task and for each subtask).`;
+${category ? `Suggested Category Hint: "${category}"` : ""}
+${context ? `User Life Context: "${context}"` : ""}`;
 
       const response = await ai.models.generateContent({
         model: "gemini-3.7-flash",
@@ -80,9 +100,26 @@ Rules for ADHD/Executive-friendly task breakdown:
           responseSchema: {
             type: Type.OBJECT,
             properties: {
+              title: {
+                type: Type.STRING,
+                description: "Rewritten, clean action title prefixed with a relevant emoji",
+              },
               category: {
                 type: Type.STRING,
-                description: "Category identifier",
+                description: "Category identifier matching one of the available categories",
+              },
+              repeatType: {
+                type: Type.STRING,
+                description: "Inferred repeat pattern: 'none', 'daily', 'weekly', or 'weekly_on'",
+              },
+              repeatDays: {
+                type: Type.ARRAY,
+                items: { type: Type.INTEGER },
+                description: "Array of day numbers (0=Sun, 1=Mon... 6=Sat) if repeating weekly on specific days",
+              },
+              granularity: {
+                type: Type.INTEGER,
+                description: "Chosen granularity level: 1 (Bite-sized), 2 (Normal), or 3 (Deep)",
               },
               estimatedMinutes: {
                 type: Type.INTEGER,
@@ -106,7 +143,7 @@ Rules for ADHD/Executive-friendly task breakdown:
                 },
               },
             },
-            required: ["category", "estimatedMinutes", "subtasks"],
+            required: ["title", "category", "repeatType", "granularity", "estimatedMinutes", "subtasks"],
           },
         },
       });

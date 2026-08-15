@@ -31,6 +31,7 @@ export interface Settings {
   context: string; // Life context injected into every AI prompt
   theme: 'light' | 'dark' | 'system';
   difficulty: 1 | 2 | 3; // 1: bite-size (default) | 2: normal | 3: deep steps
+  autoRolloverPending?: boolean; // Automatically roll over uncompleted tasks from past days to Today
   customCategories?: CategoryMeta[];
 }
 

@@ -52,6 +52,7 @@ export const CaptureModal: React.FC = () => {
   const [difficulty, setDifficulty] = useState<1 | 2 | 3>(settings.difficulty || 1);
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; estMinutes: number }[]>([]);
   const [estTotalMinutes, setEstTotalMinutes] = useState<number>(15);
+  const [aiEnhancedNotice, setAiEnhancedNotice] = useState<string | null>(null);
 
   // Brain Dump State
   const [brainDumpText, setBrainDumpText] = useState('');
@@ -81,6 +82,7 @@ export const CaptureModal: React.FC = () => {
       setDifficulty(settings.difficulty || 1);
       setSubtasks([]);
       setEstTotalMinutes(15);
+      setAiEnhancedNotice(null);
       setBrainDumpText('');
       setExtractedTasks([]);
     }
@@ -98,8 +100,33 @@ export const CaptureModal: React.FC = () => {
   const handleGenerateMagicSubtasks = async () => {
     if (!title.trim()) return;
     try {
+      setAiEnhancedNotice(null);
       const res = await requestBreakdown(title, difficulty, notes, category);
-      setCategory(res.category);
+      
+      // 1. Rewrite title and add emoji
+      if (res.title) {
+        setTitle(res.title);
+      }
+      
+      // 2. Select category
+      if (res.category) {
+        setCategory(res.category);
+      }
+      
+      // 3. Select repeat pattern
+      if (res.repeatType) {
+        setRepeatType(res.repeatType);
+        if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
+          setRepeatDays(res.repeatDays);
+        }
+      }
+      
+      // 4. Select granularity
+      if (res.granularity) {
+        setDifficulty(res.granularity);
+      }
+      
+      // 5. Total minutes & subtasks
       setEstTotalMinutes(res.estimatedMinutes);
       setSubtasks(
         res.subtasks.map((s, idx) => ({
@@ -108,6 +135,8 @@ export const CaptureModal: React.FC = () => {
           estMinutes: s.estimatedMinutes,
         }))
       );
+      
+      setAiEnhancedNotice('✨ AI auto-scaffolded: polished title with emoji, category, repeat pattern & micro-steps!');
     } catch (e) {
       console.error(e);
     }
@@ -456,7 +485,7 @@ export const CaptureModal: React.FC = () => {
               </div>
 
               {/* Magic AI Breakdown Button */}
-              <div className="pt-1">
+              <div className="pt-1 space-y-2">
                 <button
                   type="button"
                   onClick={handleGenerateMagicSubtasks}
@@ -466,12 +495,19 @@ export const CaptureModal: React.FC = () => {
                   <Sparkles className="w-4 h-4" />
                   <span>
                     {aiLoading
-                      ? 'AI is breaking down steps...'
+                      ? 'AI is scaffolding task, emoji, & micro-steps...'
                       : subtasks.length > 0
-                      ? 'Regenerate Small Steps'
-                      : 'Generate Bite-Sized Steps with AI'}
+                      ? '✨ Re-Magic Task & Micro-Steps'
+                      : '✨ AI Magic: Emoji, Category, Repeat & Steps'}
                   </span>
                 </button>
+
+                {aiEnhancedNotice && (
+                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs animate-fadeIn">
+                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span>{aiEnhancedNotice}</span>
+                  </div>
+                )}
               </div>
 
               {/* Subtasks Preview List */}

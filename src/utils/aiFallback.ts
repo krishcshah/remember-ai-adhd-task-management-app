@@ -1,9 +1,31 @@
-import { Task, TaskCategory } from '../types';
+import { Task, TaskCategory, RepeatType } from '../types';
+
+// Helper to guess appropriate emoji
+export function detectEmoji(text: string): string {
+  const lower = text.toLowerCase();
+  if (/vitamin|pill|med|medicine|supplement/.test(lower)) return '💊';
+  if (/water|hydrate|drink/.test(lower)) return '💧';
+  if (/teeth|brush|floss/.test(lower)) return '🪥';
+  if (/workout|gym|run|lift|exercise|yoga|stretch|walk|cardio/.test(lower)) return '🏋️';
+  if (/clean|tidy|vacuum|sweep|dishes|trash|mop|wipe|declutter/.test(lower)) return '🧹';
+  if (/laundry|wash|fold|clothes/.test(lower)) return '🧺';
+  if (/groceries|buy|store|target|market|shop|order/.test(lower)) return '🛒';
+  if (/cook|meal|dinner|lunch|breakfast|prep|bake/.test(lower)) return '🍳';
+  if (/tax|invoice|bill|receipt|finance|budget|bank|pay/.test(lower)) return '💰';
+  if (/email|message|slack|call|reach out|contact/.test(lower)) return '📧';
+  if (/write|draft|report|essay|doc|notes|journal/.test(lower)) return '📝';
+  if (/code|build|bug|feature|dev|deploy|debug|repo/.test(lower)) return '💻';
+  if (/study|read|book|exam|quiz|learn|lecture|research/.test(lower)) return '📚';
+  if (/meeting|sync|presentation|demo|standup|call/.test(lower)) return '👥';
+  if (/doctor|dentist|appointment|clinic|vet/.test(lower)) return '🩺';
+  if (/sleep|bed|rest|wind down|meditate|relax/.test(lower)) return '🌙';
+  return '✨';
+}
 
 // Helper to guess category from keywords
 export function detectCategory(text: string): TaskCategory {
   const lower = text.toLowerCase();
-  if (/doctor|dentist|pill|medicine|workout|run|gym|therapy|walk|stretch|hydrate|sleep|water|meal|cook|vet/.test(lower)) {
+  if (/doctor|dentist|pill|medicine|vitamin|workout|run|gym|therapy|walk|stretch|hydrate|sleep|water|meal|cook|vet/.test(lower)) {
     return 'health';
   }
   if (/buy|groceries|store|target|clean|laundry|wash|dishes|trash|order|pick up|mail|post office|package|return|bank/.test(lower)) {
@@ -21,50 +43,98 @@ export function detectCategory(text: string): TaskCategory {
   return 'other';
 }
 
+// Helper to detect repeat patterns
+export function detectRepeatPattern(text: string): { repeatType: RepeatType; repeatDays?: number[] } {
+  const lower = text.toLowerCase();
+  
+  if (/every\s*day|daily|each\s*day|morning routine|night routine|brush teeth|take vitamin/i.test(lower)) {
+    return { repeatType: 'daily' };
+  }
+
+  // Check specific day mentions
+  const days: number[] = [];
+  if (/\b(mon|monday)\b/i.test(lower)) days.push(1);
+  if (/\b(tue|tues|tuesday)\b/i.test(lower)) days.push(2);
+  if (/\b(wed|wednesday)\b/i.test(lower)) days.push(3);
+  if (/\b(thu|thur|thurs|thursday)\b/i.test(lower)) days.push(4);
+  if (/\b(fri|friday)\b/i.test(lower)) days.push(5);
+  if (/\b(sat|saturday)\b/i.test(lower)) days.push(6);
+  if (/\b(sun|sunday)\b/i.test(lower)) days.push(0);
+
+  if (days.length > 0) {
+    return { repeatType: 'weekly_on', repeatDays: days };
+  }
+
+  if (/weekly|every week|each week/i.test(lower)) {
+    return { repeatType: 'weekly' };
+  }
+
+  return { repeatType: 'none' };
+}
+
 // Fallback Task Breakdown heuristic
 export function fallbackBreakdown(
   title: string,
-  difficulty: 1 | 2 | 3 = 2,
+  difficulty?: 1 | 2 | 3,
   _notes?: string,
   suggestedCategory?: TaskCategory
-): { category: TaskCategory; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[] } {
+): {
+  title: string;
+  category: TaskCategory;
+  repeatType: RepeatType;
+  repeatDays?: number[];
+  granularity: 1 | 2 | 3;
+  estimatedMinutes: number;
+  subtasks: { title: string; estimatedMinutes: number }[];
+} {
   const category = suggestedCategory || detectCategory(title);
-  const cleanTitle = title.trim();
+  const cleanTitle = title.replace(/^[\p{Emoji}\s]+/u, '').trim();
+  const emoji = detectEmoji(title);
+  const polishedTitle = `${emoji} ${cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)}`;
+  
+  const repeatInfo = detectRepeatPattern(title);
+  
+  // Decide granularity: if explicitly provided use it, otherwise decide based on length/keywords
+  const chosenDifficulty: 1 | 2 | 3 = difficulty || (cleanTitle.length > 30 || /tax|report|project|build|clean entire/i.test(cleanTitle) ? 2 : 1);
 
   let subtasks: { title: string; estimatedMinutes: number }[] = [];
 
-  if (difficulty === 1) {
+  if (chosenDifficulty === 1) {
     // 3 bite-size micro-steps to overcome initiation freeze
     subtasks = [
-      { title: `Open materials & set up workspace for "${cleanTitle}"`, estimatedMinutes: 3 },
-      { title: `Complete the first small section / initial action`, estimatedMinutes: 10 },
-      { title: `Review output and wrap up "${cleanTitle}"`, estimatedMinutes: 7 },
+      { title: `Set up tools & clear space for "${cleanTitle}"`, estimatedMinutes: 3 },
+      { title: `Take the first immediate 5-minute action`, estimatedMinutes: 7 },
+      { title: `Review and wrap up "${cleanTitle}"`, estimatedMinutes: 5 },
     ];
-  } else if (difficulty === 3) {
+  } else if (chosenDifficulty === 3) {
     // 6-7 detailed micro-steps for overwhelming tasks
     subtasks = [
-      { title: `Clear desk & silence distractions`, estimatedMinutes: 3 },
+      { title: `Clear desk & silence notifications`, estimatedMinutes: 3 },
       { title: `Gather all links, notes, and requirements for "${cleanTitle}"`, estimatedMinutes: 7 },
       { title: `Draft a quick outline or starting point`, estimatedMinutes: 10 },
       { title: `Execute the core chunk of work`, estimatedMinutes: 15 },
       { title: `Take a 2-minute posture check & review progress`, estimatedMinutes: 5 },
-      { title: `Complete the final details & formatting`, estimatedMinutes: 10 },
+      { title: `Complete the final details & polish`, estimatedMinutes: 10 },
       { title: `Mark finished, save files, and clean up`, estimatedMinutes: 5 },
     ];
   } else {
     // Normal 4-5 balanced steps
     subtasks = [
       { title: `Prepare tools and locate materials for "${cleanTitle}"`, estimatedMinutes: 5 },
-      { title: `Begin the primary task action`, estimatedMinutes: 15 },
-      { title: `Refine, finish up, and check details`, estimatedMinutes: 10 },
-      { title: `Save/send/file and close out`, estimatedMinutes: 5 },
+      { title: `Begin the primary task action`, estimatedMinutes: 12 },
+      { title: `Refine, finish up, and check details`, estimatedMinutes: 8 },
+      { title: `Save/file and close out`, estimatedMinutes: 5 },
     ];
   }
 
   const totalEst = subtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0);
 
   return {
+    title: polishedTitle,
     category,
+    repeatType: repeatInfo.repeatType,
+    repeatDays: repeatInfo.repeatDays,
+    granularity: chosenDifficulty,
     estimatedMinutes: totalEst,
     subtasks,
   };

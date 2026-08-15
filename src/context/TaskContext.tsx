@@ -13,6 +13,7 @@ import {
   getDefaultInitialTasks,
   getDefaultSettings,
   isTaskScheduledForDate,
+  rollOverPastPendingTasks,
 } from '../utils/storage';
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
 import {
@@ -87,7 +88,15 @@ interface TaskContextType {
     difficulty?: 1 | 2 | 3,
     notes?: string,
     category?: TaskCategory
-  ) => Promise<{ category: TaskCategory; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[] }>;
+  ) => Promise<{
+    title?: string;
+    category: TaskCategory;
+    repeatType?: RepeatType;
+    repeatDays?: number[];
+    granularity?: 1 | 2 | 3;
+    estimatedMinutes: number;
+    subtasks: { title: string; estimatedMinutes: number }[];
+  }>;
   requestBrainDump: (
     text: string
   ) => Promise<Array<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[] }>>;
@@ -105,7 +114,15 @@ interface TaskContextType {
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const raw = loadTasksFromStorage();
+    const loadedSettings = loadSettingsFromStorage();
+    if (loadedSettings.autoRolloverPending !== false) {
+      const { updatedTasks } = rollOverPastPendingTasks(raw);
+      return updatedTasks;
+    }
+    return raw;
+  });
   const [settings, setSettings] = useState<Settings>(() => loadSettingsFromStorage());
   const [categories, setCategories] = useState<Record<string, CategoryMeta>>(() => loadCustomCategories());
   const [currentTab, setCurrentTab] = useState<ActiveTab>('now');
@@ -138,7 +155,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const cloudTasks = await fetchAllTasksFromCloud(currentUser.uid);
           if (cloudTasks.length > 0) {
-            setTasks(cloudTasks);
+            if (settings.autoRolloverPending !== false) {
+              const { updatedTasks } = rollOverPastPendingTasks(cloudTasks);
+              setTasks(updatedTasks);
+            } else {
+              setTasks(cloudTasks);
+            }
           } else {
             // First time cloud user: sync existing local tasks up to their new cloud account
             await syncTasksToCloud(currentUser.uid, tasks);
@@ -152,7 +174,20 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [settings.autoRolloverPending]);
+
+  // Periodic and on-toggle rollover effect
+  useEffect(() => {
+    if (settings.autoRolloverPending !== false) {
+      setTasks((prev) => {
+        const { updatedTasks, rolledCount } = rollOverPastPendingTasks(prev);
+        if (rolledCount > 0) {
+          return updatedTasks;
+        }
+        return prev;
+      });
+    }
+  }, [settings.autoRolloverPending]);
 
   // Sync tasks to local storage & cloud database
   useEffect(() => {
@@ -438,7 +473,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const requestBreakdown = useCallback(
     async (
       title: string,
-      difficulty: 1 | 2 | 3 = (settings.difficulty || 1),
+      difficulty?: 1 | 2 | 3,
       notes?: string,
       category?: TaskCategory
     ) => {
@@ -450,10 +485,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
-            difficulty,
+            difficulty: difficulty || settings.difficulty || 1,
             notes,
             category,
             context: settings.context,
+            availableCategories: Object.keys(categories),
           }),
         });
 
@@ -463,7 +499,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         const data = await res.json();
         return {
+          title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : undefined,
           category: (data.category as TaskCategory) || category || 'other',
+          repeatType: (data.repeatType as RepeatType) || 'none',
+          repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays : undefined,
+          granularity: (data.granularity as (1 | 2 | 3)) || difficulty || 1,
           estimatedMinutes: Number(data.estimatedMinutes) || 15,
           subtasks: Array.isArray(data.subtasks)
             ? data.subtasks.map((s: any) => ({
@@ -479,7 +519,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAiLoading(false);
       }
     },
-    [settings.difficulty, settings.context]
+    [settings.difficulty, settings.context, categories]
   );
 
   const requestBrainDump = useCallback(
