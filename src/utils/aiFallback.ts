@@ -1,5 +1,68 @@
 import { Task, TaskCategory, RepeatType } from '../types';
 
+/**
+ * Normalizes any subtask representation returned by AI or heuristic fallback
+ * into valid clean objects, preventing "undefined" or missing properties.
+ */
+export function normalizeAiSubtasks(
+  rawSubtasks: any,
+  fallbackTitle?: string
+): { title: string; estimatedMinutes: number }[] {
+  if (!rawSubtasks) {
+    if (fallbackTitle) {
+      return [{ title: `Start with: ${fallbackTitle.replace(/^[\p{Emoji}\s]+/u, '').slice(0, 35)}`, estimatedMinutes: 5 }];
+    }
+    return [];
+  }
+
+  const list = Array.isArray(rawSubtasks) ? rawSubtasks : [rawSubtasks];
+  const cleaned: { title: string; estimatedMinutes: number }[] = [];
+
+  for (const item of list) {
+    if (!item) continue;
+    if (typeof item === 'string') {
+      const trimmed = item.trim();
+      if (trimmed && trimmed !== 'undefined' && trimmed !== '[object Object]') {
+        cleaned.push({
+          title: trimmed,
+          estimatedMinutes: 4,
+        });
+      }
+    } else if (typeof item === 'object') {
+      const rawTitle =
+        item.title ||
+        item.text ||
+        item.name ||
+        item.step ||
+        item.subtask ||
+        item.action ||
+        item.task ||
+        item.description ||
+        item.label ||
+        '';
+      const titleStr = typeof rawTitle === 'string' ? rawTitle.trim() : String(rawTitle || '').trim();
+      const mins =
+        Number(item.estimatedMinutes || item.estMinutes || item.minutes || item.duration || item.time || 4) || 4;
+
+      if (titleStr && titleStr !== 'undefined' && titleStr !== '[object Object]') {
+        cleaned.push({
+          title: titleStr,
+          estimatedMinutes: mins,
+        });
+      }
+    }
+  }
+
+  if (cleaned.length === 0 && fallbackTitle) {
+    cleaned.push({
+      title: `Start with: ${fallbackTitle.replace(/^[\p{Emoji}\s]+/u, '').slice(0, 35)}`,
+      estimatedMinutes: 5,
+    });
+  }
+
+  return cleaned;
+}
+
 // Helper to guess appropriate emoji
 export function detectEmoji(text: string): string {
   const lower = text.toLowerCase();

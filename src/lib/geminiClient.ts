@@ -126,7 +126,21 @@ When given a raw user task input, scaffold and break it down:
 Input Task: "${params.title}"
 ${params.notes ? `Notes: "${params.notes}"` : ""}
 ${params.category ? `Category Hint: "${params.category}"` : ""}
-${params.context ? `User Life Context: "${params.context}"` : ""}`;
+${params.context ? `User Life Context: "${params.context}"` : ""}
+
+Output clean JSON in this exact structure:
+{
+  "title": "Clean concise task title with emoji",
+  "category": "work" | "personal" | "health" | "errands" | "study" | "other",
+  "repeatType": "none" | "daily" | "weekly" | "weekly_on",
+  "repeatDays": [1, 3, 5],
+  "granularity": 1,
+  "estimatedMinutes": 20,
+  "subtasks": [
+    { "title": "Action step 1", "estimatedMinutes": 4 },
+    { "title": "Action step 2", "estimatedMinutes": 5 }
+  ]
+}`;
 
   return await callDirectGemini(prompt);
 }
@@ -134,7 +148,7 @@ ${params.context ? `User Life Context: "${params.context}"` : ""}`;
 export async function directClientBrainDump(params: { text: string; context?: string }) {
   const prompt = `You are Remember, an executive function assistant.
 Extract independent actionable tasks from this unstructured brain dump text.
-Output JSON: { "tasks": [ { "title": string, "category": "work"|"personal"|"health"|"errands"|"study"|"other", "estimatedMinutes": number, "subtasks": [{ "title": string, "estimatedMinutes": number }] } ] }
+Output JSON: { "tasks": [ { "title": "Task title with verb", "category": "work"|"personal"|"health"|"errands"|"study"|"other", "estimatedMinutes": 15, "subtasks": [{ "title": "Subtask title", "estimatedMinutes": 5 }] } ] }
 
 Brain Dump Input:
 """
@@ -150,10 +164,21 @@ export async function directClientChatEdit(params: {
   context?: string;
 }) {
   const prompt = `You are Remember, an ADHD task assistant.
-Modify this task based on instruction: "${params.instruction}".
+The user wants to modify their existing task and subtasks.
 Original task: ${JSON.stringify(params.task)}
+User Request: "${params.instruction}"
+${params.context ? `User Life Context: "${params.context}"` : ""}
 
-Output updated JSON: { "title": string, "category": string, "estimatedMinutes": number, "subtasks": [ { "title": string, "estimatedMinutes": number } ] }`;
+Output clean JSON in this exact structure:
+{
+  "title": "Clean concise task title with relevant emoji",
+  "category": "work" | "personal" | "health" | "errands" | "study" | "other",
+  "estimatedMinutes": 20,
+  "subtasks": [
+    { "title": "Imperative action step 1", "estimatedMinutes": 5 },
+    { "title": "Imperative action step 2", "estimatedMinutes": 5 }
+  ]
+}`;
 
   return await callDirectGemini(prompt);
 }

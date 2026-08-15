@@ -120,11 +120,23 @@ ${context ? `User Context: "${context}"` : ""}`;
     }
 
     if (action === "chat-edit" || urlPath.includes("chat-edit")) {
-      const { task, instruction } = req.body || {};
-      const prompt = `You are Remember, an ADHD task assistant.
-Modify this task based on instruction: "${instruction}".
+      const { task, instruction, context = "" } = req.body || {};
+      const prompt = `You are Remember, an expert ADHD task assistant.
+The user wants to modify their existing task and subtasks.
 Original task: ${JSON.stringify(task)}
-Output updated JSON: { "title": string, "category": string, "estimatedMinutes": number, "subtasks": [ { "title": string, "estimatedMinutes": number } ] }`;
+User Request: "${instruction}"
+${context ? `User Context: "${context}"` : ""}
+
+Output clean JSON in this exact structure:
+{
+  "title": "Clean concise task title with relevant emoji",
+  "category": "work" | "personal" | "health" | "errands" | "study" | "other",
+  "estimatedMinutes": 20,
+  "subtasks": [
+    { "title": "Imperative action step 1", "estimatedMinutes": 5 },
+    { "title": "Imperative action step 2", "estimatedMinutes": 5 }
+  ]
+}`;
 
       const { response } = await callGeminiWithFallback(ai, prompt, {
         responseMimeType: "application/json",
@@ -148,7 +160,21 @@ When given a raw user task input, scaffold and break it down:
 Input Task: "${title}"
 ${notes ? `Notes: "${notes}"` : ""}
 ${category ? `Category Hint: "${category}"` : ""}
-${context ? `User Context: "${context}"` : ""}`;
+${context ? `User Context: "${context}"` : ""}
+
+Output clean JSON in this exact structure:
+{
+  "title": "Clean concise task title with emoji",
+  "category": "work" | "personal" | "health" | "errands" | "study" | "other",
+  "repeatType": "none" | "daily" | "weekly" | "weekly_on",
+  "repeatDays": [1, 3, 5],
+  "granularity": 1,
+  "estimatedMinutes": 20,
+  "subtasks": [
+    { "title": "Action step 1", "estimatedMinutes": 4 },
+    { "title": "Action step 2", "estimatedMinutes": 5 }
+  ]
+}`;
 
     const { response } = await callGeminiWithFallback(ai, prompt, {
       responseMimeType: "application/json",

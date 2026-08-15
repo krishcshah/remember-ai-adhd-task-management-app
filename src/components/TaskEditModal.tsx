@@ -19,6 +19,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
+import { normalizeAiSubtasks } from '../utils/aiFallback';
 
 const DAYS_OF_WEEK = [
   { id: 1, label: 'Mon' },
@@ -79,7 +80,17 @@ export const TaskEditModal: React.FC = () => {
       }
       setNotes(editingTask.notes || '');
       setEstMinutes(editingTask.estMinutes);
-      setSubtasks(editingTask.subtasks || []);
+      const initialSubs = (editingTask.subtasks || []).map((s: any, idx: number) => {
+        const rawTitle = typeof s === 'string' ? s : (s?.title || s?.text || s?.name || s?.step || s?.subtask || '');
+        const cleanTitle = String(rawTitle || '').trim();
+        return {
+          id: s?.id || `sub-${Date.now()}-${idx}`,
+          title: cleanTitle && cleanTitle !== 'undefined' ? cleanTitle : `Action step ${idx + 1}`,
+          estMinutes: Number(s?.estMinutes || s?.estimatedMinutes || 5) || 5,
+          done: Boolean(s?.done),
+        };
+      });
+      setSubtasks(initialSubs);
       setAiPrompt('');
       setShowCustomPromptBox(false);
       setAiNotice(null);
@@ -107,7 +118,12 @@ export const TaskEditModal: React.FC = () => {
       repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
       notes: notes.trim() || undefined,
       estMinutes: estMinutes || 20,
-      subtasks,
+      subtasks: subtasks.map((s, idx) => ({
+        id: s.id || `sub-${Date.now()}-${idx}`,
+        title: s.title && s.title !== 'undefined' ? s.title : `Action step ${idx + 1}`,
+        estMinutes: Number(s.estMinutes) || 5,
+        done: Boolean(s.done),
+      })),
     });
 
     closeEdit();
@@ -135,8 +151,9 @@ export const TaskEditModal: React.FC = () => {
         }
       }
       setEstMinutes(res.estimatedMinutes);
+      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
       setSubtasks(
-        res.subtasks.map((s, idx) => ({
+        normalized.map((s, idx) => ({
           id: `edit-sub-${Date.now()}-${idx}`,
           title: s.title,
           estMinutes: s.estimatedMinutes,
@@ -173,11 +190,12 @@ export const TaskEditModal: React.FC = () => {
         aiPrompt
       );
 
-      setTitle(result.title);
-      setCategory(result.category);
-      setEstMinutes(result.estimatedMinutes);
+      if (result.title) setTitle(result.title);
+      if (result.category) setCategory(result.category);
+      if (result.estimatedMinutes) setEstMinutes(result.estimatedMinutes);
+      const normalized = normalizeAiSubtasks(result.subtasks, result.title || title);
       setSubtasks(
-        result.subtasks.map((s, idx) => ({
+        normalized.map((s, idx) => ({
           id: `edit-sub-${Date.now()}-${idx}`,
           title: s.title,
           estMinutes: s.estimatedMinutes,
@@ -204,8 +222,9 @@ export const TaskEditModal: React.FC = () => {
       if (res.title) setTitle(res.title);
       if (res.category) setCategory(res.category);
       setEstMinutes(res.estimatedMinutes);
+      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
       setSubtasks(
-        res.subtasks.map((s, idx) => ({
+        normalized.map((s, idx) => ({
           id: `edit-sub-${Date.now()}-${idx}`,
           title: s.title,
           estMinutes: s.estimatedMinutes,
@@ -231,9 +250,10 @@ export const TaskEditModal: React.FC = () => {
         { ...editingTask, title, category, estMinutes, subtasks },
         'Reduce estimated time and tighten subtasks to finish faster'
       );
-      setEstMinutes(res.estimatedMinutes);
+      if (res.estimatedMinutes) setEstMinutes(res.estimatedMinutes);
+      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
       setSubtasks(
-        res.subtasks.map((s, idx) => ({
+        normalized.map((s, idx) => ({
           id: `edit-sub-${Date.now()}-${idx}`,
           title: s.title,
           estMinutes: s.estimatedMinutes,

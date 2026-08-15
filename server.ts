@@ -410,7 +410,21 @@ Update the task title, category, total estimated minutes, and subtask list accor
 
       const text = response.text;
       const parsed = parseGeminiJSON(text);
-      return res.json(parsed);
+      const rawSubs = Array.isArray(parsed?.subtasks) ? parsed.subtasks : [];
+      const cleanSubs = rawSubs.map((s: any, i: number) => {
+        const rawTitle = typeof s === "string" ? s : (s?.title || s?.text || s?.name || s?.step || s?.subtask || "");
+        const titleStr = typeof rawTitle === "string" ? rawTitle.trim() : String(rawTitle || "").trim();
+        return {
+          title: titleStr && titleStr !== "undefined" ? titleStr : `Step ${i + 1}`,
+          estimatedMinutes: Number(s?.estimatedMinutes || s?.estMinutes || 5) || 5,
+        };
+      });
+      return res.json({
+        title: parsed?.title || task.title,
+        category: parsed?.category || task.category,
+        estimatedMinutes: Number(parsed?.estimatedMinutes) || task.estMinutes,
+        subtasks: cleanSubs,
+      });
     } catch (err: any) {
       console.error("AI chat-edit error:", err);
       return res.status(500).json({

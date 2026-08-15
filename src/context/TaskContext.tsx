@@ -15,7 +15,7 @@ import {
   isTaskScheduledForDate,
   rollOverPastPendingTasks,
 } from '../utils/storage';
-import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
+import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit, normalizeAiSubtasks } from '../utils/aiFallback';
 import {
   directClientBreakdown,
   directClientBrainDump,
@@ -548,20 +548,17 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (res.ok) {
             const data = await res.json();
-            if (data && (data.title || data.subtasks)) {
+            if (data && (data.title || data.subtasks || data.tasks)) {
+              const cleanTitle = typeof data.title === 'string' && data.title.trim() ? data.title.trim() : undefined;
+              const cleanSubtasks = normalizeAiSubtasks(data.subtasks || data.tasks, cleanTitle || title);
               return {
-                title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : undefined,
+                title: cleanTitle,
                 category: (data.category as TaskCategory) || category || 'other',
                 repeatType: (data.repeatType as RepeatType) || 'none',
                 repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays : undefined,
                 granularity: (data.granularity as (1 | 2 | 3)) || difficulty || 1,
-                estimatedMinutes: Number(data.estimatedMinutes) || 15,
-                subtasks: Array.isArray(data.subtasks)
-                  ? data.subtasks.map((s: any) => ({
-                      title: String(s.title),
-                      estimatedMinutes: Number(s.estimatedMinutes) || 4,
-                    }))
-                  : [],
+                estimatedMinutes: Number(data.estimatedMinutes) || cleanSubtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0) || 15,
+                subtasks: cleanSubtasks,
                 isAiGenerated: true,
               };
             }
@@ -581,20 +578,17 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               context: settings.context,
               availableCategories: Object.keys(categories),
             });
-            if (clientData && (clientData.title || clientData.subtasks)) {
+            if (clientData && (clientData.title || clientData.subtasks || clientData.tasks)) {
+              const cleanTitle = typeof clientData.title === 'string' && clientData.title.trim() ? clientData.title.trim() : undefined;
+              const cleanSubtasks = normalizeAiSubtasks(clientData.subtasks || clientData.tasks, cleanTitle || title);
               return {
-                title: typeof clientData.title === 'string' && clientData.title.trim() ? clientData.title.trim() : undefined,
+                title: cleanTitle,
                 category: (clientData.category as TaskCategory) || category || 'other',
                 repeatType: (clientData.repeatType as RepeatType) || 'none',
                 repeatDays: Array.isArray(clientData.repeatDays) ? clientData.repeatDays : undefined,
                 granularity: (clientData.granularity as (1 | 2 | 3)) || difficulty || 1,
-                estimatedMinutes: Number(clientData.estimatedMinutes) || 15,
-                subtasks: Array.isArray(clientData.subtasks)
-                  ? clientData.subtasks.map((s: any) => ({
-                      title: String(s.title),
-                      estimatedMinutes: Number(s.estimatedMinutes) || 4,
-                    }))
-                  : [],
+                estimatedMinutes: Number(clientData.estimatedMinutes) || cleanSubtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0) || 15,
+                subtasks: cleanSubtasks,
                 isAiGenerated: true,
               };
             }
@@ -633,19 +627,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (res.ok) {
             const data = await res.json();
-            if (Array.isArray(data.tasks) && data.tasks.length > 0) {
-              return data.tasks.map((t: any) => ({
-                title: String(t.title),
-                category: (t.category as TaskCategory) || 'other',
-                estimatedMinutes: Number(t.estimatedMinutes) || 15,
-                subtasks: Array.isArray(t.subtasks)
-                  ? t.subtasks.map((s: any) => ({
-                      title: String(s.title),
-                      estimatedMinutes: Number(s.estimatedMinutes) || 5,
-                    }))
-                  : undefined,
-                isAiGenerated: true,
-              }));
+            const rawTasks = Array.isArray(data.tasks) ? data.tasks : Array.isArray(data) ? data : [];
+            if (rawTasks.length > 0) {
+              return rawTasks.map((t: any) => {
+                const cleanTitle = typeof t.title === 'string' ? t.title : String(t.name || t.text || t || '');
+                const cleanSubtasks = t.subtasks ? normalizeAiSubtasks(t.subtasks, cleanTitle) : undefined;
+                return {
+                  title: cleanTitle,
+                  category: (t.category as TaskCategory) || 'other',
+                  estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
+                  subtasks: cleanSubtasks,
+                  isAiGenerated: true,
+                };
+              });
             }
           }
         } catch (err) {
@@ -659,19 +653,19 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               text,
               context: settings.context,
             });
-            if (clientData && Array.isArray(clientData.tasks) && clientData.tasks.length > 0) {
-              return clientData.tasks.map((t: any) => ({
-                title: String(t.title),
-                category: (t.category as TaskCategory) || 'other',
-                estimatedMinutes: Number(t.estimatedMinutes) || 15,
-                subtasks: Array.isArray(t.subtasks)
-                  ? t.subtasks.map((s: any) => ({
-                      title: String(s.title),
-                      estimatedMinutes: Number(s.estimatedMinutes) || 5,
-                    }))
-                  : undefined,
-                isAiGenerated: true,
-              }));
+            const rawTasks = clientData && Array.isArray(clientData.tasks) ? clientData.tasks : Array.isArray(clientData) ? clientData : [];
+            if (rawTasks.length > 0) {
+              return rawTasks.map((t: any) => {
+                const cleanTitle = typeof t.title === 'string' ? t.title : String(t.name || t.text || t || '');
+                const cleanSubtasks = t.subtasks ? normalizeAiSubtasks(t.subtasks, cleanTitle) : undefined;
+                return {
+                  title: cleanTitle,
+                  category: (t.category as TaskCategory) || 'other',
+                  estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
+                  subtasks: cleanSubtasks,
+                  isAiGenerated: true,
+                };
+              });
             }
           } catch (clientErr: any) {
             console.warn('Direct client BrainDump failed:', clientErr);
@@ -708,16 +702,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (res.ok) {
             const data = await res.json();
+            const cleanTitle = String(data.title || data.name || task.title);
+            const cleanSubtasks = normalizeAiSubtasks(
+              data.subtasks || data.tasks || data.steps,
+              cleanTitle
+            );
             return {
-              title: String(data.title || task.title),
+              title: cleanTitle,
               category: (data.category as TaskCategory) || task.category,
-              estimatedMinutes: Number(data.estimatedMinutes) || task.estMinutes,
-              subtasks: Array.isArray(data.subtasks)
-                ? data.subtasks.map((s: any) => ({
-                    title: String(s.title),
-                    estimatedMinutes: Number(s.estimatedMinutes) || 4,
-                  }))
-                : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
+              estimatedMinutes: Number(data.estimatedMinutes || data.estMinutes) || task.estMinutes,
+              subtasks: cleanSubtasks.length > 0 ? cleanSubtasks : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
               isAiGenerated: true,
             };
           }
@@ -734,16 +728,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               context: settings.context,
             });
             if (clientData) {
+              const cleanTitle = String(clientData.title || clientData.name || task.title);
+              const cleanSubtasks = normalizeAiSubtasks(
+                clientData.subtasks || clientData.tasks || clientData.steps,
+                cleanTitle
+              );
               return {
-                title: String(clientData.title || task.title),
+                title: cleanTitle,
                 category: (clientData.category as TaskCategory) || task.category,
-                estimatedMinutes: Number(clientData.estimatedMinutes) || task.estMinutes,
-                subtasks: Array.isArray(clientData.subtasks)
-                  ? clientData.subtasks.map((s: any) => ({
-                      title: String(s.title),
-                      estimatedMinutes: Number(s.estimatedMinutes) || 4,
-                    }))
-                  : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
+                estimatedMinutes: Number(clientData.estimatedMinutes || clientData.estMinutes) || task.estMinutes,
+                subtasks: cleanSubtasks.length > 0 ? cleanSubtasks : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
                 isAiGenerated: true,
               };
             }
