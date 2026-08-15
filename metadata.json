@@ -1,0 +1,8 @@
+{
+  "name": "Remember — AI ADHD Planner",
+  "description": "An executive function companion and ADHD planner featuring single-task focus, AI magic subtasks breakdown, smart playlist focus timer, brain dump inbox, daily recurring tasks, and week/month calendar view.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

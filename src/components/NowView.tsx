@@ -1,0 +1,414 @@
+import React, { useState } from 'react';
+import { useTaskContext } from '../context/TaskContext';
+import { CATEGORIES } from '../types';
+import {
+  Play,
+  CheckCircle2,
+  Circle,
+  Sparkles,
+  ChevronRight,
+  ChevronLeft,
+  Calendar,
+  Clock,
+  Pencil,
+  Plus,
+  Compass,
+  ArrowRight,
+  Wand2,
+  Check,
+  RotateCcw,
+} from 'lucide-react';
+import { getTodayDateString } from '../utils/storage';
+
+export const NowView: React.FC = () => {
+  const {
+    activeTask,
+    tasks,
+    setActiveTaskId,
+    toggleSubtask,
+    setTaskDone,
+    startFocus,
+    openEdit,
+    openCapture,
+    requestChatEdit,
+    updateTask,
+    aiLoading,
+  } = useTaskContext();
+
+  const [isUpNextExpanded, setIsUpNextExpanded] = useState(false);
+  const [quickAiPrompt, setQuickAiPrompt] = useState('');
+  const [showAiTweakInput, setShowAiTweakInput] = useState(false);
+
+  const todayStr = getTodayDateString();
+  const todayTasks = tasks.filter(
+    (t) => t.status === 'todo' && (t.scheduledDate === todayStr || !t.scheduledDate)
+  );
+
+  const currentIndex = activeTask
+    ? todayTasks.findIndex((t) => t.id === activeTask.id)
+    : -1;
+
+  const upNextTasks = todayTasks.filter((t) => activeTask && t.id !== activeTask.id);
+
+  const handleNextTask = () => {
+    if (todayTasks.length <= 1) return;
+    const nextIdx = (currentIndex + 1) % todayTasks.length;
+    setActiveTaskId(todayTasks[nextIdx].id);
+  };
+
+  const handlePrevTask = () => {
+    if (todayTasks.length <= 1) return;
+    const prevIdx = (currentIndex - 1 + todayTasks.length) % todayTasks.length;
+    setActiveTaskId(todayTasks[prevIdx].id);
+  };
+
+  const handleApplyAiTweak = async (promptText: string) => {
+    if (!activeTask || !promptText.trim()) return;
+    try {
+      const updated = await requestChatEdit(activeTask, promptText);
+      updateTask(activeTask.id, {
+        title: updated.title,
+        category: updated.category,
+        estMinutes: updated.estimatedMinutes,
+        subtasks: updated.subtasks.map((s, idx) => ({
+          id: `sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        })),
+      });
+      setShowAiTweakInput(false);
+      setQuickAiPrompt('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // If no active task
+  if (!activeTask) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center max-w-md mx-auto">
+        <div className="w-20 h-20 rounded-full bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 flex items-center justify-center text-teal-700 dark:text-teal-400 mb-6 shadow-inner">
+          <Compass className="w-10 h-10 stroke-[1.5px]" />
+        </div>
+        <h2 className="font-display text-2xl font-bold text-stone-800 dark:text-stone-100 mb-2">
+          Clear horizon
+        </h2>
+        <p className="text-stone-600 dark:text-stone-400 text-sm leading-relaxed mb-8">
+          Nothing queued right now. Take a breath, or brain dump whatever is rattling around in your head.
+        </p>
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
+          <button
+            onClick={() => openCapture('braindump')}
+            className="flex-1 py-3.5 px-5 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-stone-950 font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all border border-amber-600/30"
+          >
+            <Sparkles className="w-4 h-4" />
+            Brain dump thoughts
+          </button>
+
+          <button
+            onClick={() => openCapture('quick')}
+            className="flex-1 py-3.5 px-5 rounded-2xl bg-stone-200 dark:bg-stone-800 hover:bg-stone-300 dark:hover:bg-stone-700 active:scale-98 text-stone-800 dark:text-stone-200 font-semibold text-sm flex items-center justify-center gap-2 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            Add a task
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const categoryMeta = CATEGORIES[activeTask.category] || CATEGORIES.other;
+  const completedSubtasksCount = activeTask.subtasks.filter((s) => s.done).length;
+  const totalSubtasks = activeTask.subtasks.length;
+  const progressPercent = totalSubtasks > 0 ? (completedSubtasksCount / totalSubtasks) * 100 : 0;
+
+  return (
+    <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full px-4 pt-3 pb-24">
+      {/* Top Navigator & Position Badge */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${categoryMeta.bgLight} ${categoryMeta.bgDark} ${categoryMeta.borderColor} ${categoryMeta.textColor} flex items-center gap-1.5`}
+          >
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ backgroundColor: categoryMeta.dotColor }}
+            />
+            {categoryMeta.label}
+          </span>
+
+          <span className="text-xs font-mono text-stone-600 dark:text-stone-300 bg-stone-200/80 dark:bg-stone-800 px-2.5 py-1 rounded-full flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            ~{activeTask.estMinutes}m
+          </span>
+        </div>
+
+        {todayTasks.length > 1 && (
+          <div className="flex items-center gap-1 bg-stone-200/60 dark:bg-stone-800/80 rounded-full px-2 py-0.5">
+            <button
+              onClick={handlePrevTask}
+              aria-label="Previous task"
+              className="p-1 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-medium text-stone-600 dark:text-stone-400 px-1 font-mono">
+              {currentIndex + 1} of {todayTasks.length}
+            </span>
+            <button
+              onClick={handleNextTask}
+              aria-label="Next task"
+              className="p-1 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Single-Focus Card */}
+      <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 shadow-sm border border-stone-200/80 dark:border-stone-800 flex-1 flex flex-col justify-between mb-4">
+        <div>
+          {/* Header row: Title & Edit button */}
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-50 leading-tight">
+              {activeTask.title}
+            </h1>
+            <button
+              onClick={() => openEdit(activeTask)}
+              className="p-2 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+              aria-label="Edit task"
+            >
+              <Pencil className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Notes if available */}
+          {activeTask.notes && (
+            <p className="text-sm text-stone-500 dark:text-stone-400 mb-5 leading-relaxed bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200/60 dark:border-stone-800">
+              {activeTask.notes}
+            </p>
+          )}
+
+          {/* Subtask Progress Header */}
+          <div className="flex items-center justify-between text-xs font-medium text-stone-500 dark:text-stone-400 mb-2 mt-4">
+            <span className="font-display font-semibold text-stone-700 dark:text-stone-300">
+              {totalSubtasks > 0 ? 'Playlist Steps' : 'Steps'}
+            </span>
+            <span className="font-mono">
+              {completedSubtasksCount}/{totalSubtasks} done
+            </span>
+          </div>
+
+          {/* Progress Bar */}
+          {totalSubtasks > 0 && (
+            <div className="w-full bg-stone-100 dark:bg-stone-800 h-1.5 rounded-full overflow-hidden mb-4">
+              <div
+                className="bg-teal-600 dark:bg-teal-500 h-full rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          )}
+
+          {/* Subtasks Checklist */}
+          <div className="space-y-2.5 max-h-[38vh] overflow-y-auto pr-1">
+            {activeTask.subtasks.map((sub, idx) => (
+              <div
+                key={sub.id}
+                onClick={() => toggleSubtask(activeTask.id, sub.id)}
+                className={`group flex items-start gap-3 p-3 rounded-2xl cursor-pointer transition-all border ${
+                  sub.done
+                    ? 'bg-stone-50/80 dark:bg-stone-900/40 border-stone-200/50 dark:border-stone-800 text-stone-400 dark:text-stone-500'
+                    : 'bg-stone-50 dark:bg-stone-900 border-stone-200/80 dark:border-stone-800 text-stone-800 dark:text-stone-200 hover:border-teal-300 dark:hover:border-teal-700'
+                }`}
+              >
+                <button
+                  type="button"
+                  aria-label={sub.done ? 'Mark step not done' : 'Mark step done'}
+                  className="mt-0.5 text-teal-700 dark:text-teal-400 focus:outline-none"
+                >
+                  {sub.done ? (
+                    <CheckCircle2 className="w-5 h-5 fill-teal-600 text-white dark:fill-teal-500 dark:text-stone-900" />
+                  ) : (
+                    <Circle className="w-5 h-5 text-stone-400 group-hover:text-teal-600 transition-colors" />
+                  )}
+                </button>
+
+                <div className="flex-1 min-w-0">
+                  <p
+                    className={`text-sm font-medium leading-snug ${
+                      sub.done ? 'line-through opacity-70' : ''
+                    }`}
+                  >
+                    {sub.title}
+                  </p>
+                </div>
+
+                <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-md bg-stone-200/60 dark:bg-stone-800 text-stone-600 dark:text-stone-400 shrink-0">
+                  {sub.estMinutes}m
+                </span>
+              </div>
+            ))}
+
+            {activeTask.subtasks.length === 0 && (
+              <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-center">
+                <p className="text-xs text-amber-900 dark:text-amber-300 mb-2">
+                  No subtasks generated yet.
+                </p>
+                <button
+                  onClick={() => handleApplyAiTweak('Break this task down into bite-sized sequential subtasks')}
+                  disabled={aiLoading}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold text-xs transition-colors shadow-sm"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  {aiLoading ? 'Thinking...' : 'Generate Magic Subtasks'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* AI Quick Tweak / Chat-edit strip */}
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800">
+            {!showAiTweakInput ? (
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setShowAiTweakInput(true)}
+                  className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  AI Tweak Steps
+                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleApplyAiTweak('Make steps easier and smaller (bite-size)')}
+                    disabled={aiLoading}
+                    className="text-[11px] font-medium px-2 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 hover:text-amber-800 transition-colors"
+                  >
+                    Bite-size
+                  </button>
+                  <button
+                    onClick={() => handleApplyAiTweak('Cut the time and make steps faster')}
+                    disabled={aiLoading}
+                    className="text-[11px] font-medium px-2 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 hover:text-amber-800 transition-colors"
+                  >
+                    Faster
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-stone-50 dark:bg-stone-900 p-2 rounded-2xl border border-amber-300/60 dark:border-amber-800">
+                <input
+                  type="text"
+                  placeholder="e.g. split step 2, or make shorter..."
+                  value={quickAiPrompt}
+                  onChange={(e) => setQuickAiPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleApplyAiTweak(quickAiPrompt);
+                  }}
+                  className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-100 focus:outline-none px-2"
+                />
+                <button
+                  onClick={() => handleApplyAiTweak(quickAiPrompt)}
+                  disabled={aiLoading || !quickAiPrompt.trim()}
+                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1 transition-colors disabled:opacity-50"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  {aiLoading ? '...' : 'Tweak'}
+                </button>
+                <button
+                  onClick={() => setShowAiTweakInput(false)}
+                  className="text-xs text-stone-400 hover:text-stone-600 px-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Primary Focus Button & Completion */}
+        <div className="pt-5 mt-4 border-t border-stone-100 dark:border-stone-800 flex items-center gap-3">
+          <button
+            onClick={() => startFocus(activeTask)}
+            className="flex-1 py-4 px-6 rounded-2xl bg-teal-800 hover:bg-teal-900 active:scale-[0.99] text-amber-300 font-display font-bold text-base flex items-center justify-center gap-3 shadow-md shadow-teal-950/20 hover:shadow-lg transition-all"
+          >
+            <div className="w-8 h-8 rounded-full bg-amber-400 text-teal-950 flex items-center justify-center">
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+            </div>
+            <span>Start Focus Timer</span>
+            <span className="text-xs font-mono font-medium text-teal-200 ml-auto bg-teal-950/40 px-2.5 py-1 rounded-lg">
+              {activeTask.estMinutes}m
+            </span>
+          </button>
+
+          <button
+            onClick={() => setTaskDone(activeTask.id, true)}
+            title="Mark entire task done"
+            className="w-14 h-14 rounded-2xl bg-stone-100 dark:bg-stone-800 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 text-stone-500 hover:text-emerald-700 dark:hover:text-emerald-300 flex items-center justify-center transition-colors border border-stone-200/60 dark:border-stone-700"
+          >
+            <Check className="w-6 h-6 stroke-[2.5px]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Up Next Peek Strip (Strictly avoided as a long list, just a calm teaser with count) */}
+      {upNextTasks.length > 0 && (
+        <div className="bg-stone-50/90 dark:bg-stone-900/90 border border-stone-200/80 dark:border-stone-800 rounded-2xl overflow-hidden transition-all shadow-sm">
+          <button
+            onClick={() => setIsUpNextExpanded(!isUpNextExpanded)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-stone-100/60 dark:hover:bg-stone-800/60 transition-colors"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-teal-600 animate-pulse" />
+              <span className="text-xs font-bold font-display uppercase tracking-wider text-stone-700 dark:text-stone-300">
+                Up Next ({upNextTasks.length})
+              </span>
+              <span className="text-xs text-stone-500 dark:text-stone-400 truncate max-w-[200px] sm:max-w-xs">
+                • {upNextTasks[0].title}
+              </span>
+            </div>
+            <ChevronRight
+              className={`w-4 h-4 text-stone-400 transition-transform ${
+                isUpNextExpanded ? 'rotate-90' : ''
+              }`}
+            />
+          </button>
+
+          {isUpNextExpanded && (
+            <div className="px-4 pb-3 pt-1 space-y-2 border-t border-stone-100 dark:border-stone-800/60">
+              {upNextTasks.map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => {
+                    setActiveTaskId(task.id);
+                    setIsUpNextExpanded(false);
+                  }}
+                  className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-stone-200/60 dark:border-stone-700 cursor-pointer transition-all group"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span
+                      className="w-2 h-2 rounded-full shrink-0"
+                      style={{
+                        backgroundColor:
+                          CATEGORIES[task.category]?.dotColor || '#78716c',
+                      }}
+                    />
+                    <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
+                      {task.title}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-mono text-stone-500 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                    Switch ➔
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

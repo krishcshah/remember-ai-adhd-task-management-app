@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="128" fill="#2F6156" />
+  <circle cx="256" cy="256" r="160" stroke="#F5F5F4" stroke-width="36" fill="none" stroke-linecap="round" />
+  <!-- Warm amber progress arc accent -->
+  <path d="M 256 96 A 160 160 0 0 1 394 336" stroke="#E08B38" stroke-width="36" fill="none" stroke-linecap="round" />
+  <!-- Center calm anchor dot -->
+  <circle cx="256" cy="256" r="54" fill="#E08B38" />
+</svg>

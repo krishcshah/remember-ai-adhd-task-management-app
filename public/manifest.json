@@ -1,0 +1,18 @@
+{
+  "name": "Anchor — AI ADHD Planner",
+  "short_name": "Anchor",
+  "description": "An executive function companion and ADHD planner featuring single-task focus, AI magic subtasks, smart playlist timers, and calendar view.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F5F5F4",
+  "theme_color": "#2F6156",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
