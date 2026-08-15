@@ -36,29 +36,28 @@ function parseGeminiJSON(text: string | undefined): any {
 }
 
 async function callGeminiWithFallback(ai: GoogleGenAI, prompt: string, config?: any) {
-  const primaryModel = "gemini-2.5-flash";
-  const fallbackModel = "gemini-flash-latest";
+  const modelsToTry = [
+    "gemini-3.7-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-flash-latest"
+  ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model: primaryModel,
-      contents: prompt,
-      config,
-    });
-    return { response, modelUsed: primaryModel };
-  } catch (err: any) {
-    console.warn(`Vercel function primary model (${primaryModel}) error:`, err?.message || err);
+  let lastError: any = null;
+  for (const model of modelsToTry) {
     try {
-      const fallbackResponse = await ai.models.generateContent({
-        model: fallbackModel,
+      const response = await ai.models.generateContent({
+        model,
         contents: prompt,
         config,
       });
-      return { response: fallbackResponse, modelUsed: fallbackModel };
-    } catch (fallbackErr: any) {
-      throw fallbackErr || err;
+      return { response, modelUsed: model };
+    } catch (err: any) {
+      console.warn(`Model ${model} failed:`, err?.message || err);
+      lastError = err;
     }
   }
+  throw lastError || new Error("All Gemini models failed to respond");
 }
 
 export default async function handler(req: any, res: any) {

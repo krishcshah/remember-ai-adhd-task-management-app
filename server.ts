@@ -62,34 +62,29 @@ async function generateGeminiContent(
   prompt: string,
   config?: any
 ) {
-  const primaryModel = "gemini-3.7-flash";
-  const fallbackModel = "gemini-flash-latest";
+  const modelsToTry = [
+    "gemini-3.7-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-flash-latest",
+  ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model: primaryModel,
-      contents: prompt,
-      config,
-    });
-    return { response, modelUsed: primaryModel };
-  } catch (primaryErr: any) {
-    console.warn(`Primary model (${primaryModel}) error:`, primaryErr?.message || primaryErr);
-    // If model not found (404) or unavailable, try fallback alias
-    if (
-      primaryErr?.status === 404 ||
-      (typeof primaryErr?.message === "string" &&
-        (primaryErr.message.includes("not found") || primaryErr.message.includes("is not supported")))
-    ) {
-      console.log(`Attempting fallback model (${fallbackModel})...`);
-      const fallbackResponse = await ai.models.generateContent({
-        model: fallbackModel,
+  let lastError: any = null;
+  for (const model of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
         contents: prompt,
         config,
       });
-      return { response: fallbackResponse, modelUsed: fallbackModel };
+      return { response, modelUsed: model };
+    } catch (err: any) {
+      console.warn(`Server Gemini model (${model}) error:`, err?.message || err);
+      lastError = err;
     }
-    throw primaryErr;
   }
+
+  throw lastError || new Error("All Gemini models failed to respond");
 }
 
 async function startServer() {

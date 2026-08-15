@@ -76,29 +76,29 @@ async function callDirectGemini(prompt: string, responseSchema?: any): Promise<a
     },
   });
 
-  const primaryModel = "gemini-2.5-flash";
-  const fallbackModel = "gemini-flash-latest";
+  const modelsToTry = [
+    "gemini-3.7-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash",
+    "gemini-flash-latest"
+  ];
 
-  try {
-    const response = await ai.models.generateContent({
-      model: primaryModel,
-      contents: prompt,
-      config: responseSchema ? { responseMimeType: "application/json", responseSchema } : undefined,
-    });
-    return parseGeminiJSON(response.text);
-  } catch (err: any) {
-    console.warn(`Direct client Gemini primary model error:`, err);
+  let lastError: any = null;
+  for (const model of modelsToTry) {
     try {
-      const fallbackResponse = await ai.models.generateContent({
-        model: fallbackModel,
+      const response = await ai.models.generateContent({
+        model,
         contents: prompt,
         config: responseSchema ? { responseMimeType: "application/json", responseSchema } : undefined,
       });
-      return parseGeminiJSON(fallbackResponse.text);
-    } catch (fallbackErr: any) {
-      throw fallbackErr || err;
+      return parseGeminiJSON(response.text);
+    } catch (err: any) {
+      console.warn(`Direct client Gemini model (${model}) error:`, err?.message || err);
+      lastError = err;
     }
   }
+
+  throw lastError || new Error("All Gemini models failed");
 }
 
 export async function directClientBreakdown(params: {
@@ -167,16 +167,31 @@ export async function directClientTest(keyOverride?: string): Promise<{ ok: bool
     }
 
     const ai = new GoogleGenAI({ apiKey: key });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: 'Respond with JSON: {"status":"ready","message":"AI is active"}',
-      config: { responseMimeType: "application/json" },
-    });
+    const modelsToTry = ["gemini-3.7-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"];
 
-    const parsed = parseGeminiJSON(response.text);
+    let lastError: any = null;
+    for (const model of modelsToTry) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: 'Respond with JSON: {"status":"ready","message":"AI is active"}',
+          config: { responseMimeType: "application/json" },
+        });
+
+        parseGeminiJSON(response.text);
+        return {
+          ok: true,
+          model,
+          latencyMs: Date.now() - startTime,
+        };
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+
     return {
-      ok: true,
-      model: "gemini-2.5-flash",
+      ok: false,
+      error: lastError?.message || "Failed to communicate with Gemini API from client",
       latencyMs: Date.now() - startTime,
     };
   } catch (err: any) {
