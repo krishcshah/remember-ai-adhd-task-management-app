@@ -56,11 +56,6 @@ export const TaskEditModal: React.FC = () => {
   const [estMinutes, setEstMinutes] = useState<number>(20);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [aiNotice, setAiNotice] = useState<string | null>(null);
-  
-  // AI Tweak states
-  const [showCustomPromptBox, setShowCustomPromptBox] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState('');
-  const [tweakingAction, setTweakingAction] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingTask) {
@@ -91,8 +86,6 @@ export const TaskEditModal: React.FC = () => {
         };
       });
       setSubtasks(initialSubs);
-      setAiPrompt('');
-      setShowCustomPromptBox(false);
       setAiNotice(null);
     }
   }, [editingTask]);
@@ -138,7 +131,6 @@ export const TaskEditModal: React.FC = () => {
   // Main AI Magic Re-run
   const handleGenerateMagicBreakdown = async () => {
     if (!title.trim()) return;
-    setTweakingAction('magic');
     setAiNotice(null);
     try {
       const existingSubs = subtasks
@@ -147,7 +139,7 @@ export const TaskEditModal: React.FC = () => {
 
       const hadPriorSteps = existingSubs.length > 0;
 
-      const res = await requestBreakdown(title, 2, notes, category, existingSubs);
+      const res = await requestBreakdown(title, undefined, notes, category, existingSubs);
       if (res.title) setTitle(res.title);
       if (res.category) setCategory(res.category);
       if (res.repeatType) {
@@ -169,8 +161,8 @@ export const TaskEditModal: React.FC = () => {
       if (res.isAiGenerated !== false) {
         setAiNotice(
           hadPriorSteps
-            ? '✨ Gemini 3.7 Flash: refined your steps, fixed spelling & polished estimates!'
-            : '✨ Gemini 3.7 Flash: re-scaffolded title, category, repeat pattern & subtasks!'
+            ? '✨ Gemini 3.7 Flash: refined steps, fixed spelling & updated estimates!'
+            : '✨ Gemini 3.7 Flash: updated title, category, repeat pattern & subtasks!'
         );
       } else {
         setAiNotice('⚡ Refined with smart assistant');
@@ -178,109 +170,6 @@ export const TaskEditModal: React.FC = () => {
     } catch (e: any) {
       console.error(e);
       setAiNotice(`Notice: ${e?.message || 'AI generation failed'}`);
-    } finally {
-      setTweakingAction(null);
-    }
-  };
-
-  // AI Tweaker: 1. Custom Instruction
-  const handleApplyCustomAiEdit = async () => {
-    if (!editingTask || !aiPrompt.trim()) return;
-    setTweakingAction('custom');
-    setAiNotice(null);
-    try {
-      const result = await requestChatEdit(
-        {
-          ...editingTask,
-          title,
-          category,
-          notes,
-          estMinutes,
-          subtasks,
-        },
-        aiPrompt
-      );
-
-      if (result.title) setTitle(result.title);
-      if (result.category) setCategory(result.category);
-      if (result.estimatedMinutes) setEstMinutes(result.estimatedMinutes);
-      const normalized = normalizeAiSubtasks(result.subtasks, result.title || title);
-      setSubtasks(
-        normalized.map((s, idx) => ({
-          id: `edit-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        }))
-      );
-      setAiPrompt('');
-      setShowCustomPromptBox(false);
-      setAiNotice('✨ AI applied your custom tweaks while preserving context & fixing typos!');
-    } catch (e: any) {
-      console.error(e);
-      setAiNotice(`Notice: ${e?.message || 'AI tweak failed'}`);
-    } finally {
-      setTweakingAction(null);
-    }
-  };
-
-  // AI Tweaker: 2. Bite-Sized
-  const handleApplyBiteSized = async () => {
-    setTweakingAction('bitesize');
-    setAiNotice(null);
-    try {
-      const existingSubs = subtasks
-        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
-        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
-
-      const res = await requestBreakdown(title, 1, notes, category, existingSubs);
-      if (res.title) setTitle(res.title);
-      if (res.category) setCategory(res.category);
-      setEstMinutes(res.estimatedMinutes);
-      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
-      setSubtasks(
-        normalized.map((s, idx) => ({
-          id: `edit-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        }))
-      );
-      setAiNotice('✂️ Refined into bite-sized micro-steps with spelling corrected!');
-    } catch (e: any) {
-      console.error(e);
-      setAiNotice(`Notice: ${e?.message || 'AI breakdown failed'}`);
-    } finally {
-      setTweakingAction(null);
-    }
-  };
-
-  // AI Tweaker: 3. Faster
-  const handleApplyFaster = async () => {
-    if (!editingTask) return;
-    setTweakingAction('faster');
-    setAiNotice(null);
-    try {
-      const res = await requestChatEdit(
-        { ...editingTask, title, category, notes, estMinutes, subtasks },
-        'Reduce estimated time and tighten subtasks to finish faster'
-      );
-      if (res.estimatedMinutes) setEstMinutes(res.estimatedMinutes);
-      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
-      setSubtasks(
-        normalized.map((s, idx) => ({
-          id: `edit-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        }))
-      );
-      setAiNotice('⚡ Compressed task duration and subtasks!');
-    } catch (e: any) {
-      console.error(e);
-      setAiNotice(`Notice: ${e?.message || 'AI edit failed'}`);
-    } finally {
-      setTweakingAction(null);
     }
   };
 
@@ -377,22 +266,11 @@ export const TaskEditModal: React.FC = () => {
             </div>
           )}
 
-          {/* Title + AI Magic Quick Button */}
+          {/* Title */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
-                Task Title
-              </label>
-              <button
-                type="button"
-                onClick={handleGenerateMagicBreakdown}
-                disabled={aiLoading || !title.trim()}
-                className="px-2.5 py-1 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-stone-950 text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              >
-                <Sparkles className={`w-3.5 h-3.5 ${aiLoading && tweakingAction === 'magic' ? 'animate-spin' : ''}`} />
-                <span>AI Magic Re-run</span>
-              </button>
-            </div>
+            <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
+              Task Title
+            </label>
             <div className="relative">
               <input
                 type="text"
@@ -404,105 +282,22 @@ export const TaskEditModal: React.FC = () => {
             </div>
           </div>
 
-          {/* AI Task Tweakers Box */}
-          <div className="bg-stone-50 dark:bg-stone-800/60 p-3.5 rounded-2xl border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-stone-600 dark:text-stone-300 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                AI Assistant & Tweakers
-              </span>
-              {aiLoading && (
-                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 animate-pulse flex items-center gap-1">
-                  <Wand2 className="w-3 h-3 animate-spin" />
-                  Gemini updating task...
-                </span>
-              )}
-            </div>
+          {/* AI Magic Action */}
+          <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-2xl border border-stone-200/80 dark:border-stone-700/80 space-y-2">
+            <button
+              type="button"
+              onClick={() => handleGenerateMagicBreakdown()}
+              disabled={aiLoading || !title.trim()}
+              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+              <span>{aiLoading ? 'Gemini updating task...' : 'AI Magic'}</span>
+            </button>
 
-            <div className="grid grid-cols-4 gap-1.5">
-              <button
-                type="button"
-                onClick={handleGenerateMagicBreakdown}
-                disabled={aiLoading || !title.trim()}
-                title="Re-run AI to auto-update emoji title, category, repeat pattern & subtasks"
-                className={`py-2 px-1.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 ${
-                  tweakingAction === 'magic'
-                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
-                    : 'bg-white dark:bg-stone-800 border-amber-300/80 dark:border-amber-700/80 text-stone-800 dark:text-stone-200 hover:bg-amber-50 dark:hover:bg-amber-950/40'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="truncate">AI Magic</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCustomPromptBox(!showCustomPromptBox)}
-                disabled={aiLoading}
-                title="Instruct AI with custom request"
-                className={`py-2 px-1.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  showCustomPromptBox
-                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
-                }`}
-              >
-                <MessageSquareText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span className="truncate">Tweak</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleApplyBiteSized}
-                disabled={aiLoading}
-                title="Break task into 3-5 min bite-sized steps"
-                className={`py-2 px-1.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 ${
-                  tweakingAction === 'bitesize'
-                    ? 'bg-teal-100 dark:bg-teal-950/80 border-teal-400 dark:border-teal-600 text-teal-950 dark:text-teal-200'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900'
-                }`}
-              >
-                <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-                <span className="truncate">Bite-Sized</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleApplyFaster}
-                disabled={aiLoading}
-                title="Reduce duration and tighten steps"
-                className={`py-2 px-1.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 ${
-                  tweakingAction === 'faster'
-                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 dark:border-amber-600 text-amber-950 dark:text-amber-200'
-                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900'
-                }`}
-              >
-                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                <span className="truncate">Faster</span>
-              </button>
-            </div>
-
-            {showCustomPromptBox && (
-              <div className="pt-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  placeholder="e.g. split step 2, change category to study, reduce time to 15m..."
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleApplyCustomAiEdit();
-                  }}
-                  autoFocus
-                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-800 border border-amber-300 dark:border-amber-700 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                />
-                <button
-                  type="button"
-                  onClick={handleApplyCustomAiEdit}
-                  disabled={aiLoading || !aiPrompt.trim()}
-                  className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-stone-950 text-xs font-bold flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  Apply
-                </button>
+            {aiNotice && (
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs">
+                <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span className="text-[11px] leading-tight">{aiNotice}</span>
               </div>
             )}
           </div>

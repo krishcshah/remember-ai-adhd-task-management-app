@@ -103,7 +103,6 @@ async function callDirectGemini(prompt: string, responseSchema?: any): Promise<a
 
 export async function directClientBreakdown(params: {
   title: string;
-  difficulty?: number;
   notes?: string;
   category?: string;
   context?: string;
@@ -142,7 +141,11 @@ ${subtasksToConsider.map((s: any, i: number) => {
   return `${i + 1}. "${stepTitle}" (~${stepMins} min)`;
 }).join("\n")}` : `When given a raw user task input, scaffold and break it down:
 1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI (e.g., "💊 Take morning vitamins", "🧹 Declutter desk", "📊 Finish quarterly budget report"). Fix any spelling mistakes.
-2. GENERATE 3-6 ACTIONABLE SUBTASKS starting with imperative action verbs.`}
+2. OPTIMAL SUBTASK GRANULARITY: Autonomously determine the ideal breakdown depth and micro-step durations based on the task complexity:
+   - Simple routine: 3-4 bite-sized steps (1-5 min each).
+   - Standard tasks: 4-6 clear, sequential action steps (5-10 min each).
+   - Complex tasks: 5-8 detailed, reassuring micro-steps.
+   - Assign appropriate "granularity" (1 for small, 2 for standard, 3 for deep).`}
 
 2. SELECT BEST CATEGORY from: [${categoriesList}]. ${params.category ? `User category: "${params.category}". Keep unless clearly wrong.` : ""}
 3. REPEAT PATTERN: "none", "daily", or "weekly_on" (with repeatDays array where 0=Sun, 1=Mon... 6=Sat).

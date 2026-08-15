@@ -42,7 +42,7 @@ export const CaptureModal: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'quick' | 'braindump'>(captureInitialTab);
 
-  // Quick Add State - default difficulty set to 1 (Small / Bite-sized)
+  // Quick Add State
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<TaskCategory>('work');
   const [scheduledDate, setScheduledDate] = useState<string | null>(getTodayDateString());
@@ -50,7 +50,6 @@ export const CaptureModal: React.FC = () => {
   const [repeatType, setRepeatType] = useState<RepeatType>('none');
   const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(settings.difficulty || 1);
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; estMinutes: number }[]>([]);
   const [estTotalMinutes, setEstTotalMinutes] = useState<number>(15);
   const [manualStepText, setManualStepText] = useState('');
@@ -82,7 +81,6 @@ export const CaptureModal: React.FC = () => {
       setRepeatType('none');
       setRepeatDays([]);
       setNotes('');
-      setDifficulty(settings.difficulty || 1);
       setSubtasks([]);
       setEstTotalMinutes(15);
       setManualStepText('');
@@ -91,7 +89,7 @@ export const CaptureModal: React.FC = () => {
       setBrainDumpText('');
       setExtractedTasks([]);
     }
-  }, [isCaptureOpen, settings.difficulty]);
+  }, [isCaptureOpen]);
 
   const toggleRepeatDay = (dayId: number) => {
     setRepeatDays((prev) =>
@@ -142,7 +140,7 @@ export const CaptureModal: React.FC = () => {
 
       const hadPriorSteps = existingSubs.length > 0;
 
-      const res = await requestBreakdown(title, difficulty, notes, category, existingSubs);
+      const res = await requestBreakdown(title, undefined, notes, category, existingSubs);
       
       // 1. Rewrite title and add emoji (with spelling correction)
       if (res.title) {
@@ -163,9 +161,7 @@ export const CaptureModal: React.FC = () => {
       }
       
       // 4. Select granularity
-      if (res.granularity) {
-        setDifficulty(res.granularity);
-      }
+      // granularity setting removed since AI autonomously determines it
       
       // 5. Total minutes & subtasks
       setEstTotalMinutes(res.estimatedMinutes);
@@ -181,7 +177,7 @@ export const CaptureModal: React.FC = () => {
         setAiEnhancedNotice(
           hadPriorSteps
             ? '✨ Gemini 3.7 Flash: refined your steps, fixed spelling & polished time estimates!'
-            : '✨ Gemini 3.7 Flash: scaffolded emoji title, smart category, repeat pattern & micro-steps!'
+            : '✨ Gemini 3.7 Flash: generated emoji title, smart category, repeat pattern & micro-steps!'
         );
       } else {
         setAiEnhancedNotice(
@@ -535,7 +531,7 @@ export const CaptureModal: React.FC = () => {
                       </h4>
                       <p className="text-[10px] text-stone-500">
                         {subtasks.length === 0
-                          ? 'Add steps manually or let AI scaffold them'
+                          ? 'Add steps manually or use AI Magic'
                           : `${subtasks.length} step${subtasks.length === 1 ? '' : 's'} • ~${estTotalMinutes} min total`}
                       </p>
                     </div>
@@ -587,66 +583,25 @@ export const CaptureModal: React.FC = () => {
                       type="button"
                       onClick={handleAddManualSubtask}
                       disabled={!manualStepText.trim()}
-                      className="px-3 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-semibold text-xs flex items-center gap-1 shadow-xs transition-all disabled:opacity-40 disabled:hover:bg-teal-800 cursor-pointer shrink-0"
+                      title="Add Step"
+                      aria-label="Add Step"
+                      className="w-8 h-8 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-semibold flex items-center justify-center shadow-xs transition-all disabled:opacity-40 disabled:hover:bg-teal-800 cursor-pointer shrink-0"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add Step</span>
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
 
-                {/* AI Magic Option Divider / Toolbar */}
+                {/* AI Magic Action Button */}
                 <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/60 space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-400 flex items-center gap-1">
-                      <Sparkles className="w-3 h-3 text-amber-500" />
-                      <span>AI Magic Breakdown</span>
-                    </label>
-                    <div className="flex items-center gap-1 bg-stone-200/70 dark:bg-stone-800 p-0.5 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(1)}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
-                          difficulty === 1
-                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
-                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
-                        }`}
-                      >
-                        1 Small
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(2)}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
-                          difficulty === 2
-                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
-                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
-                        }`}
-                      >
-                        2 Normal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(3)}
-                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
-                          difficulty === 3
-                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
-                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
-                        }`}
-                      >
-                        3 Deep
-                      </button>
-                    </div>
-                  </div>
-
                   <button
                     type="button"
                     onClick={handleGenerateMagicSubtasks}
                     disabled={aiLoading || !title.trim()}
-                    className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{aiLoading ? 'AI Generating Micro-Steps...' : 'Auto-Scaffold with AI Magic'}</span>
+                    <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
+                    <span>{aiLoading ? 'Gemini generating steps...' : 'AI Magic'}</span>
                   </button>
 
                   {aiEnhancedNotice && (
@@ -725,7 +680,7 @@ export const CaptureModal: React.FC = () => {
                   </div>
                 ) : (
                   <p className="text-[11px] text-stone-500 dark:text-stone-400 italic text-center py-1">
-                    No steps added yet. Type a step above or click Auto-Scaffold with AI Magic.
+                    No steps added yet. Type a step above or click AI Magic.
                   </p>
                 )}
               </div>

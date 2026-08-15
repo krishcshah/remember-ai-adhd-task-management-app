@@ -575,7 +575,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const clientData = await directClientBreakdown({
               title,
-              difficulty: difficulty || settings.difficulty || 1,
               notes,
               category,
               context: settings.context,

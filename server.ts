@@ -212,8 +212,12 @@ ${subtasksToConsider.map((s: any, i: number) => {
      * "weekly" or "weekly_on": for tasks on specific days (e.g., trash night, laundry day, gym on Mon/Wed/Fri). Include "repeatDays" as array of day numbers where 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat.
      * "none": for one-off tasks (e.g., file taxes, call landlord, buy birthday gift).
 
-4. DECIDE SUBTASK GRANULARITY:
-   - Respect requested difficulty: ${difficulty || 1} (1: Bite-sized 3-4 steps, 2: Normal 4-5 steps, 3: Deep 6-8 steps).
+4. OPTIMAL SUBTASK GRANULARITY:
+   - Autonomously determine the ideal breakdown depth and micro-step durations based on the task complexity and executive load:
+     * Simple routine/habit: 3-4 bite-sized steps (1-5 min each).
+     * Standard tasks: 4-6 clear, sequential action steps (5-10 min each).
+     * Complex or high-friction tasks: 5-8 detailed, reassuring micro-steps with clear starting anchors.
+   - Assign appropriate "granularity" (1 for small/bite-sized, 2 for standard, 3 for deep).
 
 Input Task Title: "${title.trim()}"
 ${notes ? `Additional Notes: "${notes}" (Fix any spelling mistakes in notes context)` : ""}

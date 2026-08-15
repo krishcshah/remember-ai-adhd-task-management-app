@@ -204,7 +204,7 @@ export const NowView: React.FC = () => {
   const repeatLabel = getRepeatLabel();
 
   return (
-    <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full px-4 pt-3 pb-20">
+    <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full px-4 pt-3 pb-24 sm:pb-28">
       {/* Top Navigator & Position Badge */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto no-scrollbar py-0.5">
@@ -333,9 +333,9 @@ export const NowView: React.FC = () => {
               </div>
             )}
 
-            {/* Subtasks Checklist with Sleek No-Scrollbar & Fading Hint */}
+            {/* Subtasks Checklist */}
             <div className="relative">
-              <div className="space-y-2 max-h-[210px] sm:max-h-[230px] overflow-y-auto no-scrollbar pr-0.5 scroll-smooth">
+              <div className="space-y-2 max-h-[220px] sm:max-h-[250px] overflow-y-auto no-scrollbar pb-3 scroll-smooth">
                 {activeTask.subtasks.map((sub) => (
                   <motion.div
                     key={sub.id}
@@ -395,11 +395,11 @@ export const NowView: React.FC = () => {
                 )}
               </div>
 
-              {/* Bottom Gradient Fade if more than 3 steps to signify more content below */}
+              {/* Bottom Gradient Fade with hint if multiple steps */}
               {activeTask.subtasks.length > 3 && (
-                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-9 bg-gradient-to-t from-white dark:from-stone-900 via-white/80 dark:via-stone-900/80 to-transparent rounded-b-xl flex items-end justify-center pb-0.5">
-                  <span className="text-[9px] font-medium text-stone-400 dark:text-stone-500 tracking-wider">
-                    ↓ more steps below
+                <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white dark:from-stone-900 via-white/80 dark:via-stone-900/80 to-transparent rounded-b-xl flex items-end justify-center pb-0.5">
+                  <span className="text-[9px] font-semibold text-stone-400 dark:text-stone-500 tracking-wider">
+                    ↓ more
                   </span>
                 </div>
               )}
