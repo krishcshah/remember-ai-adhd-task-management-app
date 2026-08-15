@@ -108,23 +108,47 @@ export async function directClientBreakdown(params: {
   category?: string;
   context?: string;
   availableCategories?: string[];
+  existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>;
+  currentSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>;
 }) {
   const categoriesList =
     params.availableCategories && params.availableCategories.length > 0
       ? params.availableCategories.join(", ")
       : "work, personal, health, errands, study, other";
 
-  const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
-When given a raw user task input, scaffold and break it down:
+  const subtasksToConsider =
+    Array.isArray(params.existingSubtasks) && params.existingSubtasks.length > 0
+      ? params.existingSubtasks
+      : Array.isArray(params.currentSubtasks) && params.currentSubtasks.length > 0
+      ? params.currentSubtasks
+      : [];
 
-1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI:
-   - Prefix with a single relevant emoji (e.g., "💊 Take morning vitamins", "🧹 Declutter desk", "📊 Finish quarterly budget report").
-2. SELECT BEST CATEGORY from: [${categoriesList}].
+  const hasExistingSteps = subtasksToConsider.length > 0;
+
+  const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
+${hasExistingSteps ? `CRITICAL DIRECTIVE: The user has ALREADY entered steps/subtasks manually or is re-applying AI to an existing task.
+DO NOT discard, replace, or invent completely new unrelated steps.
+Use their existing input as primary context:
+1. FIX ALL SPELLING MISTAKES, TYPOS, AND GRAMMAR ERRORS in the task title, notes, and subtask steps.
+2. PRESERVE the user's specific steps, meaning, and order, polishing each step to start with a clear, active imperative verb (e.g. "Open...", "Draft...", "Check...").
+3. If they only provided 1 or 2 partial steps, keep their steps (polished and spell-checked) and append logical missing next steps to complete the workflow.
+4. Calculate realistic time estimates for each step and total duration.
+5. Polish the title with an appropriate emoji and correct any spelling mistakes in the title.
+
+Existing User Steps:
+${subtasksToConsider.map((s: any, i: number) => {
+  const stepTitle = typeof s === "string" ? s : (s?.title || s?.text || s?.name || "");
+  const stepMins = Number(s?.estimatedMinutes || s?.estMinutes || 5) || 5;
+  return `${i + 1}. "${stepTitle}" (~${stepMins} min)`;
+}).join("\n")}` : `When given a raw user task input, scaffold and break it down:
+1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI (e.g., "💊 Take morning vitamins", "🧹 Declutter desk", "📊 Finish quarterly budget report"). Fix any spelling mistakes.
+2. GENERATE 3-6 ACTIONABLE SUBTASKS starting with imperative action verbs.`}
+
+2. SELECT BEST CATEGORY from: [${categoriesList}]. ${params.category ? `User category: "${params.category}". Keep unless clearly wrong.` : ""}
 3. REPEAT PATTERN: "none", "daily", or "weekly_on" (with repeatDays array where 0=Sun, 1=Mon... 6=Sat).
-4. GENERATE 3-6 ACTIONABLE SUBTASKS starting with imperative action verbs.
 
 Input Task: "${params.title}"
-${params.notes ? `Notes: "${params.notes}"` : ""}
+${params.notes ? `Notes: "${params.notes}" (Fix any spelling mistakes in notes)` : ""}
 ${params.category ? `Category Hint: "${params.category}"` : ""}
 ${params.context ? `User Life Context: "${params.context}"` : ""}
 
@@ -163,11 +187,22 @@ export async function directClientChatEdit(params: {
   instruction: string;
   context?: string;
 }) {
-  const prompt = `You are Remember, an ADHD task assistant.
-The user wants to modify their existing task and subtasks.
-Original task: ${JSON.stringify(params.task)}
+  const prompt = `You are Remember, an expert ADHD task assistant.
+The user wants to modify their existing task and subtask breakdown.
+Current Task:
+Title: "${params.task?.title || ""}"
+Category: "${params.task?.category || ""}"
+${params.task?.notes ? `Notes: "${params.task.notes}"` : ""}
+Current Subtasks:
+${((params.task?.subtasks as any[]) || []).map((s: any, i: number) => `${i + 1}. "${s?.title || s}" (~${s?.estMinutes || s?.estimatedMinutes || 5} min)`).join("\n")}
+
 User Request: "${params.instruction}"
 ${params.context ? `User Life Context: "${params.context}"` : ""}
+
+DIRECTIVES:
+1. Fix all typos, spelling mistakes, and grammar errors in the title, notes, and subtasks.
+2. PRESERVE existing subtasks and details, applying the user's modifications directly.
+3. Ensure every subtask starts with a crisp imperative verb.
 
 Output clean JSON in this exact structure:
 {

@@ -140,7 +140,8 @@ export function fallbackBreakdown(
   title: string,
   difficulty?: 1 | 2 | 3,
   _notes?: string,
-  suggestedCategory?: TaskCategory
+  suggestedCategory?: TaskCategory,
+  existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
 ): {
   title: string;
   category: TaskCategory;
@@ -162,32 +163,53 @@ export function fallbackBreakdown(
 
   let subtasks: { title: string; estimatedMinutes: number }[] = [];
 
-  if (chosenDifficulty === 1) {
-    // 3 bite-size micro-steps to overcome initiation freeze
-    subtasks = [
-      { title: `Set up tools & clear space for "${cleanTitle}"`, estimatedMinutes: 3 },
-      { title: `Take the first immediate 5-minute action`, estimatedMinutes: 7 },
-      { title: `Review and wrap up "${cleanTitle}"`, estimatedMinutes: 5 },
-    ];
-  } else if (chosenDifficulty === 3) {
-    // 6-7 detailed micro-steps for overwhelming tasks
-    subtasks = [
-      { title: `Clear desk & silence notifications`, estimatedMinutes: 3 },
-      { title: `Gather all links, notes, and requirements for "${cleanTitle}"`, estimatedMinutes: 7 },
-      { title: `Draft a quick outline or starting point`, estimatedMinutes: 10 },
-      { title: `Execute the core chunk of work`, estimatedMinutes: 15 },
-      { title: `Take a 2-minute posture check & review progress`, estimatedMinutes: 5 },
-      { title: `Complete the final details & polish`, estimatedMinutes: 10 },
-      { title: `Mark finished, save files, and clean up`, estimatedMinutes: 5 },
-    ];
-  } else {
-    // Normal 4-5 balanced steps
-    subtasks = [
-      { title: `Prepare tools and locate materials for "${cleanTitle}"`, estimatedMinutes: 5 },
-      { title: `Begin the primary task action`, estimatedMinutes: 12 },
-      { title: `Refine, finish up, and check details`, estimatedMinutes: 8 },
-      { title: `Save/file and close out`, estimatedMinutes: 5 },
-    ];
+  // If the user already provided existing subtasks, preserve and clean them up
+  if (existingSubtasks && existingSubtasks.length > 0) {
+    subtasks = existingSubtasks
+      .map((s) => {
+        const rawTitle = typeof s === 'string' ? s : (s?.title || '');
+        const cleaned = String(rawTitle).trim();
+        const mins = Number(s?.estimatedMinutes || s?.estMinutes || 5) || 5;
+        if (!cleaned || cleaned === 'undefined') return null;
+        // Capitalize first letter
+        const capitalized = cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+        return {
+          title: capitalized,
+          estimatedMinutes: mins,
+        };
+      })
+      .filter((s): s is { title: string; estimatedMinutes: number } => s !== null);
+  }
+
+  // If no existing subtasks, generate based on difficulty
+  if (subtasks.length === 0) {
+    if (chosenDifficulty === 1) {
+      // 3 bite-size micro-steps to overcome initiation freeze
+      subtasks = [
+        { title: `Set up tools & clear space for "${cleanTitle}"`, estimatedMinutes: 3 },
+        { title: `Take the first immediate 5-minute action`, estimatedMinutes: 7 },
+        { title: `Review and wrap up "${cleanTitle}"`, estimatedMinutes: 5 },
+      ];
+    } else if (chosenDifficulty === 3) {
+      // 6-7 detailed micro-steps for overwhelming tasks
+      subtasks = [
+        { title: `Clear desk & silence notifications`, estimatedMinutes: 3 },
+        { title: `Gather all links, notes, and requirements for "${cleanTitle}"`, estimatedMinutes: 7 },
+        { title: `Draft a quick outline or starting point`, estimatedMinutes: 10 },
+        { title: `Execute the core chunk of work`, estimatedMinutes: 15 },
+        { title: `Take a 2-minute posture check & review progress`, estimatedMinutes: 5 },
+        { title: `Complete the final details & polish`, estimatedMinutes: 10 },
+        { title: `Mark finished, save files, and clean up`, estimatedMinutes: 5 },
+      ];
+    } else {
+      // Normal 4-5 balanced steps
+      subtasks = [
+        { title: `Prepare tools and locate materials for "${cleanTitle}"`, estimatedMinutes: 5 },
+        { title: `Begin the primary task action`, estimatedMinutes: 12 },
+        { title: `Refine, finish up, and check details`, estimatedMinutes: 8 },
+        { title: `Save/file and close out`, estimatedMinutes: 5 },
+      ];
+    }
   }
 
   const totalEst = subtasks.reduce((sum, s) => sum + s.estimatedMinutes, 0);
@@ -198,7 +220,7 @@ export function fallbackBreakdown(
     repeatType: repeatInfo.repeatType,
     repeatDays: repeatInfo.repeatDays,
     granularity: chosenDifficulty,
-    estimatedMinutes: totalEst,
+    estimatedMinutes: totalEst > 0 ? totalEst : 15,
     subtasks,
   };
 }

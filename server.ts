@@ -156,6 +156,8 @@ async function startServer() {
         notes = "",
         category,
         availableCategories = [],
+        existingSubtasks = [],
+        currentSubtasks = [],
       } = req.body;
 
       if (!title || typeof title !== "string" || !title.trim()) {
@@ -174,15 +176,35 @@ async function startServer() {
         ? availableCategories.join(", ")
         : "work, personal, health, errands, study, other";
 
-      const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
-When given a raw user task input, your goal is to fully scaffold, organize, and break it down:
+      const subtasksToConsider = Array.isArray(existingSubtasks) && existingSubtasks.length > 0
+        ? existingSubtasks
+        : Array.isArray(currentSubtasks) && currentSubtasks.length > 0
+        ? currentSubtasks
+        : [];
 
-1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI:
-   - Clean up vague, shorthand, or messy phrasing into an inspiring, actionable task title.
-   - Prefix the title with a single relevant, appealing emoji (e.g., "💊 Take morning vitamins & hydrate", "🧹 Declutter and wipe down desk", "📊 Finish quarterly budget report", "🏋️ Leg day strength workout", "🧺 Fold & put away clean laundry", "🛒 Grocery shopping run").
+      const hasExistingSteps = subtasksToConsider.length > 0;
+
+      const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
+${hasExistingSteps ? `CRITICAL DIRECTIVE: The user has ALREADY entered steps/subtasks manually or is re-applying AI to an existing task.
+DO NOT discard, replace, or invent completely new unrelated steps.
+Use their existing input as primary context:
+1. FIX ALL SPELLING MISTAKES, TYPOS, AND GRAMMAR ERRORS in the task title, notes, and subtask steps.
+2. PRESERVE the user's specific steps, meaning, and order, polishing each step to start with a clear, active imperative verb (e.g. "Open...", "Draft...", "Check...").
+3. If they only provided 1 or 2 partial steps, keep their steps (polished and spell-checked) and append logical missing next steps to complete the workflow.
+4. Calculate realistic time estimates for each step and total duration.
+5. Polish the title with an appropriate emoji and correct any spelling mistakes in the title.
+
+Existing User Steps:
+${subtasksToConsider.map((s: any, i: number) => {
+  const stepTitle = typeof s === "string" ? s : (s?.title || s?.text || s?.name || "");
+  const stepMins = Number(s?.estimatedMinutes || s?.estMinutes || 5) || 5;
+  return `${i + 1}. "${stepTitle}" (~${stepMins} min)`;
+}).join("\n")}` : `When given a raw user task input, your goal is to fully scaffold, organize, and break it down:
+1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI: Clean up typos, spelling mistakes, or messy phrasing into an inspiring task title with an emoji prefix.
+2. GENERATE 3-6 LOGICAL ACTIONABLE MICRO-STEPS starting with imperative verbs.`}
 
 2. SELECT BEST CATEGORY:
-   - Pick the most fitting category identifier from: [${categoriesList}].
+   - Pick the most fitting category identifier from: [${categoriesList}]. ${category ? `User current category: "${category}". Keep it unless clearly wrong.` : ""}
 
 3. SMART REPEAT PATTERN:
    - Determine if this is a recurring habit or routine:
@@ -191,18 +213,11 @@ When given a raw user task input, your goal is to fully scaffold, organize, and 
      * "none": for one-off tasks (e.g., file taxes, call landlord, buy birthday gift).
 
 4. DECIDE SUBTASK GRANULARITY:
-   - If user explicitly specified difficulty (1, 2, or 3), you may respect it. Otherwise smartly decide based on task cognitive complexity:
-     * 1 (Bite-sized, 3-4 micro steps): for high-friction initiation, quick chores, or daily habits to prevent freeze.
-     * 2 (Normal, 4-5 steps): for standard multi-step projects.
-     * 3 (Deep, 6-8 micro-steps): for complex, multi-stage or high-stress projects.
+   - Respect requested difficulty: ${difficulty || 1} (1: Bite-sized 3-4 steps, 2: Normal 4-5 steps, 3: Deep 6-8 steps).
 
-5. GENERATE SUBTASKS:
-   - Every subtask title MUST start with an active imperative verb (e.g., "Open...", "Gather...", "Draft...", "Wipe...", "Check...").
-   - Total estimated minutes should account for real friction.
-
-Input Task: "${title.trim()}"
-${notes ? `Additional Notes: "${notes}"` : ""}
-${category ? `Suggested Category Hint: "${category}"` : ""}
+Input Task Title: "${title.trim()}"
+${notes ? `Additional Notes: "${notes}" (Fix any spelling mistakes in notes context)` : ""}
+${category ? `Category: "${category}"` : ""}
 ${context ? `User Life Context: "${context}"` : ""}`;
 
       const { response } = await generateGeminiContent(ai, prompt, {
@@ -370,19 +385,24 @@ Rules:
         });
       }
 
-      const prompt = `You are Remember, a task assistant.
+      const prompt = `You are Remember, an expert ADHD task assistant.
 The user wants to modify their existing task and subtask breakdown using natural language.
 
-Current Task:
+Current Task Details:
 Title: "${task.title}"
 Category: "${task.category}"
+${task.notes ? `Notes: "${task.notes}"` : ""}
 Current Subtasks:
-${(task.subtasks || []).map((s: any, i: number) => `${i + 1}. ${s.title} (${s.estMinutes || 5}m)`).join("\n")}
+${(task.subtasks || []).map((s: any, i: number) => `${i + 1}. "${s.title}" (~${s.estMinutes || 5} min)`).join("\n")}
 
-User Request: "${instruction}"
+User Request / Instruction: "${instruction}"
 ${context ? `User Life Context: "${context}"` : ""}
 
-Update the task title, category, total estimated minutes, and subtask list according to the user's request. Keep subtask titles starting with imperative verbs.`;
+DIRECTIVES:
+1. FIX ALL SPELLING MISTAKES, TYPOS, AND GRAMMAR ERRORS across the title, notes, and subtasks.
+2. PRESERVE the existing subtasks and context, applying the user's requested instruction directly on top of them (rather than wiping them out or making up random new ones, unless instructed to do so).
+3. Ensure every subtask starts with a crisp imperative verb and has realistic estimated minutes.
+4. Total estimated minutes should accurately reflect the sum or overall scope.`;
 
       const { response } = await generateGeminiContent(ai, prompt, {
         responseMimeType: "application/json",

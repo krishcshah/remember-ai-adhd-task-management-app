@@ -100,7 +100,8 @@ interface TaskContextType {
     title: string,
     difficulty?: 1 | 2 | 3,
     notes?: string,
-    category?: TaskCategory
+    category?: TaskCategory,
+    existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
   ) => Promise<{
     title?: string;
     category: TaskCategory;
@@ -525,7 +526,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       title: string,
       difficulty?: 1 | 2 | 3,
       notes?: string,
-      category?: TaskCategory
+      category?: TaskCategory,
+      existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
     ) => {
       setAiLoading(true);
       setAiError(null);
@@ -543,6 +545,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               category,
               context: settings.context,
               availableCategories: Object.keys(categories),
+              existingSubtasks,
             }),
           });
 
@@ -577,6 +580,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               category,
               context: settings.context,
               availableCategories: Object.keys(categories),
+              existingSubtasks,
             });
             if (clientData && (clientData.title || clientData.subtasks || clientData.tasks)) {
               const cleanTitle = typeof clientData.title === 'string' && clientData.title.trim() ? clientData.title.trim() : undefined;
@@ -599,7 +603,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Tier 3: Intelligent offline rule-based fallback
-        const fb = fallbackBreakdown(title, difficulty, notes, category);
+        const fb = fallbackBreakdown(title, difficulty, notes, category, existingSubtasks);
         return { ...fb, isAiGenerated: false };
       } finally {
         setAiLoading(false);

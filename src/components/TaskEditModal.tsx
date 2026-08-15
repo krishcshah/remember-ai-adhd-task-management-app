@@ -141,7 +141,13 @@ export const TaskEditModal: React.FC = () => {
     setTweakingAction('magic');
     setAiNotice(null);
     try {
-      const res = await requestBreakdown(title, 2, notes, category);
+      const existingSubs = subtasks
+        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
+        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
+
+      const hadPriorSteps = existingSubs.length > 0;
+
+      const res = await requestBreakdown(title, 2, notes, category, existingSubs);
       if (res.title) setTitle(res.title);
       if (res.category) setCategory(res.category);
       if (res.repeatType) {
@@ -161,9 +167,13 @@ export const TaskEditModal: React.FC = () => {
         }))
       );
       if (res.isAiGenerated !== false) {
-        setAiNotice('✨ Gemini 3.7 Flash: re-scaffolded title, category, repeat pattern & subtasks!');
+        setAiNotice(
+          hadPriorSteps
+            ? '✨ Gemini 3.7 Flash: refined your steps, fixed spelling & polished estimates!'
+            : '✨ Gemini 3.7 Flash: re-scaffolded title, category, repeat pattern & subtasks!'
+        );
       } else {
-        setAiNotice('⚡ Generated with smart assistant');
+        setAiNotice('⚡ Refined with smart assistant');
       }
     } catch (e: any) {
       console.error(e);
@@ -184,6 +194,7 @@ export const TaskEditModal: React.FC = () => {
           ...editingTask,
           title,
           category,
+          notes,
           estMinutes,
           subtasks,
         },
@@ -204,7 +215,7 @@ export const TaskEditModal: React.FC = () => {
       );
       setAiPrompt('');
       setShowCustomPromptBox(false);
-      setAiNotice('✨ AI applied your custom tweaks!');
+      setAiNotice('✨ AI applied your custom tweaks while preserving context & fixing typos!');
     } catch (e: any) {
       console.error(e);
       setAiNotice(`Notice: ${e?.message || 'AI tweak failed'}`);
@@ -218,7 +229,11 @@ export const TaskEditModal: React.FC = () => {
     setTweakingAction('bitesize');
     setAiNotice(null);
     try {
-      const res = await requestBreakdown(title, 1, notes, category);
+      const existingSubs = subtasks
+        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
+        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
+
+      const res = await requestBreakdown(title, 1, notes, category, existingSubs);
       if (res.title) setTitle(res.title);
       if (res.category) setCategory(res.category);
       setEstMinutes(res.estimatedMinutes);
@@ -231,7 +246,7 @@ export const TaskEditModal: React.FC = () => {
           done: false,
         }))
       );
-      setAiNotice('✂️ Broken down into bite-sized micro-steps!');
+      setAiNotice('✂️ Refined into bite-sized micro-steps with spelling corrected!');
     } catch (e: any) {
       console.error(e);
       setAiNotice(`Notice: ${e?.message || 'AI breakdown failed'}`);
@@ -247,7 +262,7 @@ export const TaskEditModal: React.FC = () => {
     setAiNotice(null);
     try {
       const res = await requestChatEdit(
-        { ...editingTask, title, category, estMinutes, subtasks },
+        { ...editingTask, title, category, notes, estMinutes, subtasks },
         'Reduce estimated time and tighten subtasks to finish faster'
       );
       if (res.estimatedMinutes) setEstMinutes(res.estimatedMinutes);

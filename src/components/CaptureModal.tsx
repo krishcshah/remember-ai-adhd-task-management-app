@@ -53,6 +53,8 @@ export const CaptureModal: React.FC = () => {
   const [difficulty, setDifficulty] = useState<1 | 2 | 3>(settings.difficulty || 1);
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; estMinutes: number }[]>([]);
   const [estTotalMinutes, setEstTotalMinutes] = useState<number>(15);
+  const [manualStepText, setManualStepText] = useState('');
+  const [manualStepMins, setManualStepMins] = useState<number>(5);
   const [aiEnhancedNotice, setAiEnhancedNotice] = useState<string | null>(null);
 
   // Brain Dump State
@@ -83,6 +85,8 @@ export const CaptureModal: React.FC = () => {
       setDifficulty(settings.difficulty || 1);
       setSubtasks([]);
       setEstTotalMinutes(15);
+      setManualStepText('');
+      setManualStepMins(5);
       setAiEnhancedNotice(null);
       setBrainDumpText('');
       setExtractedTasks([]);
@@ -95,14 +99,52 @@ export const CaptureModal: React.FC = () => {
     );
   };
 
+  // Add manual subtask step
+  const handleAddManualSubtask = () => {
+    const text = manualStepText.trim();
+    if (!text) return;
+    const mins = Math.max(1, Number(manualStepMins) || 5);
+    const newStep = {
+      id: `man-sub-${Date.now()}-${subtasks.length}`,
+      title: text,
+      estMinutes: mins,
+    };
+    const nextList = [...subtasks, newStep];
+    setSubtasks(nextList);
+    const total = nextList.reduce((sum, s) => sum + s.estMinutes, 0);
+    if (total > 0) setEstTotalMinutes(total);
+    setManualStepText('');
+  };
+
+  const handleRemoveSubtask = (indexToRemove: number) => {
+    const nextList = subtasks.filter((_, idx) => idx !== indexToRemove);
+    setSubtasks(nextList);
+    const total = nextList.reduce((sum, s) => sum + s.estMinutes, 0);
+    setEstTotalMinutes(total > 0 ? total : 15);
+  };
+
+  const handleUpdateSubtaskMinutes = (index: number, minutes: number) => {
+    const mins = Math.max(1, minutes);
+    const nextList = subtasks.map((st, idx) => (idx === index ? { ...st, estMinutes: mins } : st));
+    setSubtasks(nextList);
+    const total = nextList.reduce((sum, s) => sum + s.estMinutes, 0);
+    if (total > 0) setEstTotalMinutes(total);
+  };
+
   // Run AI Magic Breakdown for quick add
   const handleGenerateMagicSubtasks = async () => {
     if (!title.trim()) return;
     try {
       setAiEnhancedNotice(null);
-      const res = await requestBreakdown(title, difficulty, notes, category);
+      const existingSubs = subtasks
+        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
+        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
+
+      const hadPriorSteps = existingSubs.length > 0;
+
+      const res = await requestBreakdown(title, difficulty, notes, category, existingSubs);
       
-      // 1. Rewrite title and add emoji
+      // 1. Rewrite title and add emoji (with spelling correction)
       if (res.title) {
         setTitle(res.title);
       }
@@ -136,9 +178,17 @@ export const CaptureModal: React.FC = () => {
       );
       
       if (res.isAiGenerated !== false) {
-        setAiEnhancedNotice('✨ Gemini 3.7 Flash: scaffolded emoji title, smart category, repeat pattern & micro-steps!');
+        setAiEnhancedNotice(
+          hadPriorSteps
+            ? '✨ Gemini 3.7 Flash: refined your steps, fixed spelling & polished time estimates!'
+            : '✨ Gemini 3.7 Flash: scaffolded emoji title, smart category, repeat pattern & micro-steps!'
+        );
       } else {
-        setAiEnhancedNotice('⚡ Generated with smart offline assistant (AI service offline or check API Key in Settings)');
+        setAiEnhancedNotice(
+          hadPriorSteps
+            ? '⚡ Refined existing steps & polished estimates'
+            : '⚡ Generated with smart assistant'
+        );
       }
     } catch (e: any) {
       console.error(e);
@@ -472,124 +522,213 @@ export const CaptureModal: React.FC = () => {
                 </div>
               </div>
 
-              {/* Subtask Granularity Default: Level 1 Small */}
-              <div>
-                <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                  Subtask Granularity (Default: Small)
-                </label>
-                <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-800 p-1.5 rounded-2xl">
-                  <button
-                    type="button"
-                    onClick={() => setDifficulty(1)}
-                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      difficulty === 1
-                        ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    1 Small
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDifficulty(2)}
-                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      difficulty === 2
-                        ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    2 Normal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDifficulty(3)}
-                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                      difficulty === 3
-                        ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
-                    }`}
-                  >
-                    3 Deep
-                  </button>
-                </div>
-              </div>
-
-              {/* Magic AI Breakdown Button */}
-              <div className="pt-1 space-y-2">
-                <button
-                  type="button"
-                  onClick={handleGenerateMagicSubtasks}
-                  disabled={aiLoading || !title.trim()}
-                  className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>{aiLoading ? 'AI Magic...' : 'AI Magic'}</span>
-                </button>
-
-                {aiEnhancedNotice && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs animate-fadeIn">
-                    <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                    <span>{aiEnhancedNotice}</span>
+              {/* Micro-Steps & Subtasks Management */}
+              <div className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+                      <Layers className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                        Micro-Steps & Subtasks
+                      </h4>
+                      <p className="text-[10px] text-stone-500">
+                        {subtasks.length === 0
+                          ? 'Add steps manually or let AI scaffold them'
+                          : `${subtasks.length} step${subtasks.length === 1 ? '' : 's'} • ~${estTotalMinutes} min total`}
+                      </p>
+                    </div>
                   </div>
+
+                  {subtasks.length > 0 && (
+                    <div className="flex items-center gap-1.5 bg-white dark:bg-stone-800 px-2 py-1 rounded-lg border border-stone-200 dark:border-stone-700">
+                      <Clock className="w-3 h-3 text-stone-400" />
+                      <span className="text-[11px] font-mono font-semibold text-stone-700 dark:text-stone-300">
+                        ~{estTotalMinutes}m
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Manual Subtask Quick Add Bar */}
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-semibold text-stone-600 dark:text-stone-400">
+                    Add Step Manually:
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. Gather notes, open document, send email..."
+                      value={manualStepText}
+                      onChange={(e) => setManualStepText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddManualSubtask();
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-teal-600/30"
+                    />
+                    
+                    <div className="flex items-center gap-1 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 px-2 py-1.5 rounded-xl">
+                      <input
+                        type="number"
+                        min={1}
+                        max={120}
+                        value={manualStepMins}
+                        onChange={(e) => setManualStepMins(Math.max(1, parseInt(e.target.value) || 5))}
+                        className="w-8 text-center text-xs font-mono bg-transparent text-stone-800 dark:text-stone-200 focus:outline-none"
+                      />
+                      <span className="text-[10px] font-mono text-stone-400">m</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleAddManualSubtask}
+                      disabled={!manualStepText.trim()}
+                      className="px-3 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-white font-semibold text-xs flex items-center gap-1 shadow-xs transition-all disabled:opacity-40 disabled:hover:bg-teal-800 cursor-pointer shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Step</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Magic Option Divider / Toolbar */}
+                <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/60 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-[11px] font-semibold text-stone-600 dark:text-stone-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500" />
+                      <span>AI Magic Breakdown</span>
+                    </label>
+                    <div className="flex items-center gap-1 bg-stone-200/70 dark:bg-stone-800 p-0.5 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setDifficulty(1)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
+                          difficulty === 1
+                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
+                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                        }`}
+                      >
+                        1 Small
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDifficulty(2)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
+                          difficulty === 2
+                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
+                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                        }`}
+                      >
+                        2 Normal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDifficulty(3)}
+                        className={`px-2 py-0.5 text-[10px] font-bold rounded-lg transition-all ${
+                          difficulty === 3
+                            ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
+                            : 'text-stone-500 hover:text-stone-800 dark:hover:text-stone-300'
+                        }`}
+                      >
+                        3 Deep
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateMagicSubtasks}
+                    disabled={aiLoading || !title.trim()}
+                    className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{aiLoading ? 'AI Generating Micro-Steps...' : 'Auto-Scaffold with AI Magic'}</span>
+                  </button>
+
+                  {aiEnhancedNotice && (
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs">
+                      <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                      <span className="text-[11px] leading-tight">{aiEnhancedNotice}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Subtasks List */}
+                {subtasks.length > 0 ? (
+                  <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/60 space-y-2">
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                      {subtasks.map((st, i) => (
+                        <div
+                          key={st.id}
+                          className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 shadow-2xs"
+                        >
+                          <span className="w-5 h-5 rounded-full bg-stone-100 dark:bg-stone-800 text-[10px] font-bold text-stone-600 dark:text-stone-400 flex items-center justify-center font-mono shrink-0">
+                            {i + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={st.title}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setSubtasks((prev) =>
+                                prev.map((item, idx) => (idx === i ? { ...item, title: val } : item))
+                              );
+                            }}
+                            className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-200 focus:outline-none"
+                          />
+                          <div className="flex items-center gap-1 bg-stone-50 dark:bg-stone-800 px-1.5 py-0.5 rounded-lg border border-stone-200 dark:border-stone-700">
+                            <input
+                              type="number"
+                              min={1}
+                              max={120}
+                              value={st.estMinutes}
+                              onChange={(e) =>
+                                handleUpdateSubtaskMinutes(i, parseInt(e.target.value) || 5)
+                              }
+                              className="w-7 text-center text-[11px] font-mono bg-transparent text-stone-700 dark:text-stone-300 focus:outline-none"
+                            />
+                            <span className="text-[10px] font-mono text-stone-400">m</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSubtask(i)}
+                            className="text-stone-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
+                            title="Delete step"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newStep = {
+                          id: `man-sub-${Date.now()}-${subtasks.length}`,
+                          title: `Action step ${subtasks.length + 1}`,
+                          estMinutes: 5,
+                        };
+                        const nextList = [...subtasks, newStep];
+                        setSubtasks(nextList);
+                        const total = nextList.reduce((sum, s) => sum + s.estMinutes, 0);
+                        if (total > 0) setEstTotalMinutes(total);
+                      }}
+                      className="text-xs text-teal-800 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1 pt-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add another step
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-stone-500 dark:text-stone-400 italic text-center py-1">
+                    No steps added yet. Type a step above or click Auto-Scaffold with AI Magic.
+                  </p>
                 )}
               </div>
-
-              {/* Subtasks Preview List */}
-              {subtasks.length > 0 && (
-                <div className="bg-stone-50 dark:bg-stone-800/60 p-4 rounded-2xl border border-stone-200/80 dark:border-stone-700 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
-                    <span>Generated Micro-Steps ({subtasks.length})</span>
-                    <span className="font-mono text-stone-500">~{estTotalMinutes} min total</span>
-                  </div>
-
-                  <div className="space-y-2">
-                    {subtasks.map((st, i) => (
-                      <div
-                        key={st.id}
-                        className="flex items-center gap-2 p-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700"
-                      >
-                        <span className="w-5 h-5 rounded-full bg-stone-100 dark:bg-stone-800 text-[10px] font-bold text-stone-500 flex items-center justify-center font-mono shrink-0">
-                          {i + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={st.title}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSubtasks((prev) =>
-                              prev.map((item, idx) => (idx === i ? { ...item, title: val } : item))
-                            );
-                          }}
-                          className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-200 focus:outline-none"
-                        />
-                        <span className="text-[10px] font-mono text-stone-400">
-                          {st.estMinutes}m
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setSubtasks((prev) => prev.filter((_, idx) => idx !== i))}
-                          className="text-stone-300 hover:text-rose-500 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setSubtasks((prev) => [
-                        ...prev,
-                        { id: `man-${Date.now()}`, title: 'New step', estMinutes: 5 },
-                      ])
-                    }
-                    className="text-xs text-teal-800 dark:text-teal-400 font-semibold hover:underline flex items-center gap-1 pt-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Add another step
-                  </button>
-                </div>
-              )}
             </div>
           ) : (
             /* BRAIN DUMP TAB */
