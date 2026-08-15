@@ -36,7 +36,7 @@ async function startServer() {
   // AI Task Breakdown Endpoint
   app.post("/api/ai/breakdown", async (req, res) => {
     try {
-      const { title, difficulty = 2, context = "", notes = "", category } = req.body;
+      const { title, difficulty = 1, context = "", notes = "", category } = req.body;
 
       if (!title || typeof title !== "string" || !title.trim()) {
         return res.status(400).json({ error: "Task title is required" });
@@ -54,10 +54,10 @@ async function startServer() {
         difficulty === 1
           ? "Difficulty 1 (Bite-size): Provide 3-4 very small, low-friction steps that reduce task initiation freeze. First step must be ultra-simple."
           : difficulty === 3
-          ? "Difficulty 3 (Overwhelming): Provide 6-8 micro-steps breaking down complex multi-part tasks in thorough detail."
+          ? "Difficulty 3 (Deep): Provide 6-8 micro-steps breaking down complex multi-part tasks in thorough detail."
           : "Difficulty 2 (Normal): Provide 4-6 balanced, sequential steps.";
 
-      const prompt = `You are Anchor, an expert ADHD and neurodivergent executive-function task assistant.
+      const prompt = `You are Remember, an expert executive-function task assistant.
 Break down this task into clear, sequential, bite-sized subtasks.
 
 Task Title: "${title.trim()}"
@@ -65,11 +65,11 @@ ${notes ? `Additional Notes: "${notes}"` : ""}
 ${category ? `Suggested Category: "${category}"` : ""}
 ${context ? `User Life Context: "${context}"` : ""}
 
-Rules for ADHD-friendly task breakdown:
+Rules for ADHD/Executive-friendly task breakdown:
 1. Every subtask title MUST start with an active imperative verb (e.g., "Open...", "Gather...", "Draft...", "Write...", "Send...").
 2. ${difficultyGuide}
 3. Account for realistic task-initiation friction and mental transitions in the estimatedMinutes.
-4. Keep the category to one of: "work", "personal", "health", "errands", "study", "other".
+4. Keep the category to one of: "work", "personal", "health", "errands", "study", "other" or custom string.
 5. Return realistic time estimates in minutes (estMinutes for total task and for each subtask).`;
 
       const response = await ai.models.generateContent({
@@ -82,7 +82,7 @@ Rules for ADHD-friendly task breakdown:
             properties: {
               category: {
                 type: Type.STRING,
-                description: "One of work, personal, health, errands, study, other",
+                description: "Category identifier",
               },
               estimatedMinutes: {
                 type: Type.INTEGER,
@@ -144,7 +144,7 @@ Rules for ADHD-friendly task breakdown:
         });
       }
 
-      const prompt = `You are Anchor, an ADHD external executive function assistant.
+      const prompt = `You are Remember, an executive function and task assistant.
 The user has poured out an unstructured "brain dump" of thoughts, to-dos, or voice transcripts.
 Extract distinct, concrete, actionable tasks from this text.
 
@@ -236,7 +236,7 @@ Rules:
         });
       }
 
-      const prompt = `You are Anchor, an ADHD task assistant.
+      const prompt = `You are Remember, a task assistant.
 The user wants to modify their existing task and subtask breakdown using natural language.
 
 Current Task:
@@ -310,7 +310,7 @@ Update the task title, category, total estimated minutes, and subtask list accor
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Anchor server running on http://localhost:${PORT}`);
+    console.log(`Remember server running on http://localhost:${PORT}`);
   });
 }
 

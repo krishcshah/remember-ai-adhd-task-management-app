@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CATEGORIES, TaskCategory, Task } from '../types';
+import { DEFAULT_CATEGORIES, TaskCategory, Task, CategoryMeta } from '../types';
 import {
   Search,
   CheckCircle2,
@@ -10,19 +10,19 @@ import {
   Trash2,
   Calendar,
   Clock,
-  Sparkles,
-  Inbox,
-  Check,
   Plus,
   ArrowUpRight,
+  Repeat,
 } from 'lucide-react';
-import { getTodayDateString } from '../utils/storage';
+import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
 
 export const LibraryView: React.FC = () => {
   const {
     tasks,
+    categories,
+    openAddCategoryModal,
+    openRepeatModal,
     scheduleTaskForToday,
-    scheduleTaskForDate,
     setTaskDone,
     deleteTask,
     startFocus,
@@ -36,6 +36,7 @@ export const LibraryView: React.FC = () => {
   >('all');
 
   const todayStr = getTodayDateString();
+  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   const filteredTasks = tasks.filter((task) => {
     // Search query match
@@ -49,8 +50,8 @@ export const LibraryView: React.FC = () => {
 
     // Filter tab
     if (filterTab === 'all') return true;
-    if (filterTab === 'today') return task.scheduledDate === todayStr && task.status === 'todo';
-    if (filterTab === 'unscheduled') return !task.scheduledDate && task.status === 'todo';
+    if (filterTab === 'today') return isTaskScheduledForDate(task, todayStr) && task.status === 'todo';
+    if (filterTab === 'unscheduled') return !task.scheduledDate && !task.repeatDaily && task.status === 'todo';
     if (filterTab === 'completed') return task.status === 'done';
     return task.category === filterTab && task.status === 'todo';
   });
@@ -68,12 +69,20 @@ export const LibraryView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => openCapture('quick')}
-          className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={openAddCategoryModal}
+            className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" /> Category
+          </button>
+          <button
+            onClick={() => openCapture('quick')}
+            className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Task
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}
@@ -128,7 +137,7 @@ export const LibraryView: React.FC = () => {
               : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
           }`}
         >
-          Brain Dump Inbox ({tasks.filter((t) => !t.scheduledDate && t.status === 'todo').length})
+          Inbox ({tasks.filter((t) => !t.scheduledDate && !t.repeatDaily && t.status === 'todo').length})
         </button>
 
         <button
@@ -142,7 +151,7 @@ export const LibraryView: React.FC = () => {
           Completed
         </button>
 
-        {Object.values(CATEGORIES).map((cat) => (
+        {Object.values(allCategories).map((cat) => (
           <button
             key={cat.id}
             onClick={() => setFilterTab(cat.id)}
@@ -162,9 +171,21 @@ export const LibraryView: React.FC = () => {
       <div className="space-y-3 pt-1">
         {filteredTasks.length > 0 ? (
           filteredTasks.map((task) => {
-            const meta = CATEGORIES[task.category] || CATEGORIES.other;
+            const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
             const isDone = task.status === 'done';
-            const isToday = task.scheduledDate === todayStr;
+            const isToday = isTaskScheduledForDate(task, todayStr);
+
+            // Determine repeat string
+            const getRepeatBadge = () => {
+              if (task.repeatType === 'daily' || task.repeatDaily) return 'Daily';
+              if (task.repeatType === 'weekly') return 'Weekly';
+              if (task.repeatType === 'weekly_on' && task.repeatDays?.length) {
+                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return task.repeatDays.map((d) => dayNames[d]).join(', ');
+              }
+              return null;
+            };
+            const repeatBadge = getRepeatBadge();
 
             return (
               <div
@@ -219,7 +240,21 @@ export const LibraryView: React.FC = () => {
                           {task.subtasks.length} {task.subtasks.length === 1 ? 'step' : 'steps'}
                         </span>
 
-                        {task.scheduledDate ? (
+                        {/* Small Repeat Badge / Trigger Button */}
+                        <button
+                          onClick={() => openRepeatModal(task)}
+                          className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 transition-colors ${
+                            repeatBadge
+                              ? 'bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold'
+                              : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
+                          }`}
+                          title="Configure repeating schedule"
+                        >
+                          <Repeat className="w-2.5 h-2.5" />
+                          {repeatBadge || 'Repeat'}
+                        </button>
+
+                        {task.scheduledDate && !task.repeatDaily && (
                           <span
                             className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 ${
                               isToday
@@ -229,10 +264,6 @@ export const LibraryView: React.FC = () => {
                           >
                             <Calendar className="w-3 h-3" />
                             {isToday ? 'Today' : task.scheduledDate}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300">
-                            Unscheduled
                           </span>
                         )}
                       </div>

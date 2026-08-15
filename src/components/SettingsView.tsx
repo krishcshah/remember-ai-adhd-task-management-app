@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTaskContext } from '../context/TaskContext';
+import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
 import {
   Sparkles,
   Sliders,
@@ -11,11 +12,17 @@ import {
   RotateCcw,
   ShieldCheck,
   Check,
+  Tag,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
   const {
     settings,
+    categories,
+    openAddCategoryModal,
+    deleteCustomCategory,
     updateSettings,
     resetAllData,
     exportDataJSON,
@@ -38,7 +45,7 @@ export const SettingsView: React.FC = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `anchor-tasks-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `remember-backup-${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -59,6 +66,11 @@ export const SettingsView: React.FC = () => {
     };
     reader.readAsText(file);
   };
+
+  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
+  const customCategoryKeys = Object.keys(categories).filter(
+    (k) => !DEFAULT_CATEGORIES[k as keyof typeof DEFAULT_CATEGORIES]
+  );
 
   return (
     <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
@@ -114,7 +126,7 @@ export const SettingsView: React.FC = () => {
           <div>
             <h2 className="font-display font-bold text-sm">Default Breakdown Granularity</h2>
             <p className="text-[11px] text-stone-500 dark:text-stone-400">
-              Controls how many small steps AI generates for each task
+              Controls how many small steps AI generates for each task (Default: Level 1)
             </p>
           </div>
         </div>
@@ -128,9 +140,12 @@ export const SettingsView: React.FC = () => {
                 : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300'
             }`}
           >
-            <div className="font-bold text-xs">Level 1 • Bite-size</div>
+            <div className="font-bold text-xs flex items-center justify-between">
+              <span>Level 1 • Small</span>
+              <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.2 rounded font-mono">Default</span>
+            </div>
             <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
-              3-4 micro steps. Best for heavy task paralysis.
+              3-4 micro steps. Best for overcoming task paralysis.
             </div>
           </button>
 
@@ -161,6 +176,65 @@ export const SettingsView: React.FC = () => {
               6-8 detailed steps for overwhelming projects.
             </div>
           </button>
+        </div>
+      </div>
+
+      {/* Category Management */}
+      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+              <Tag className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-sm">Task Categories</h2>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                Organize your life domains & areas of focus
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openAddCategoryModal}
+            className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Category
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
+          {Object.values(allCategories).map((cat) => {
+            const isCustom = Boolean(customCategoryKeys.includes(cat.id));
+            return (
+              <div
+                key={cat.id}
+                className="p-2.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-3 h-3 rounded-full shrink-0"
+                    style={{ backgroundColor: cat.dotColor }}
+                  />
+                  <span className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate">
+                    {cat.label}
+                  </span>
+                </div>
+
+                {isCustom && (
+                  <button
+                    type="button"
+                    onClick={() => deleteCustomCategory(cat.id)}
+                    className="text-stone-400 hover:text-rose-500 p-1 transition-colors"
+                    title="Delete category"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -233,7 +307,7 @@ export const SettingsView: React.FC = () => {
           Data & Local Backup
         </h2>
         <p className="text-[11px] text-stone-500">
-          Anchor stores data in your browser. Export anytime to save a copy.
+          Remember stores data securely in your browser. Export anytime to save a copy.
         </p>
 
         {importStatus && (

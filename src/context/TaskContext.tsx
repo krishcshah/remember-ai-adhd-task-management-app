@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { Task, TaskCategory, Settings, ActiveTab } from '../types';
+import { Task, TaskCategory, Settings, ActiveTab, CategoryMeta, RepeatType, COLOR_PALETTES } from '../types';
 import {
   loadTasksFromStorage,
   saveTasksToStorage,
@@ -7,15 +7,19 @@ import {
   saveSettingsToStorage,
   loadActiveTaskId,
   saveActiveTaskId,
+  loadCustomCategories,
+  saveCustomCategories,
   getTodayDateString,
   getDefaultInitialTasks,
   getDefaultSettings,
+  isTaskScheduledForDate,
 } from '../utils/storage';
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
 
 interface TaskContextType {
   tasks: Task[];
   settings: Settings;
+  categories: Record<string, CategoryMeta>;
   currentTab: ActiveTab;
   activeTask: Task | null;
   focusTask: Task | null;
@@ -23,6 +27,9 @@ interface TaskContextType {
   captureInitialTab: 'quick' | 'braindump';
   isEditOpen: boolean;
   editingTask: Task | null;
+  isRepeatOpen: boolean;
+  repeatTargetTask: Task | null;
+  isAddCategoryOpen: boolean;
   aiLoading: boolean;
   aiError: string | null;
   theme: 'light' | 'dark' | 'system';
@@ -33,6 +40,10 @@ interface TaskContextType {
   closeCapture: () => void;
   openEdit: (task: Task) => void;
   closeEdit: () => void;
+  openRepeatModal: (task: Task) => void;
+  closeRepeatModal: () => void;
+  openAddCategoryModal: () => void;
+  closeAddCategoryModal: () => void;
   startFocus: (task: Task) => void;
   closeFocus: () => void;
   stopFocus: () => void;
@@ -48,6 +59,10 @@ interface TaskContextType {
   scheduleTaskForToday: (taskId: string) => void;
   scheduleTaskForDate: (taskId: string, date: string | null) => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
+  
+  // Category Management
+  addCategory: (label: string, paletteId?: string) => CategoryMeta;
+  deleteCategory: (id: string) => void;
 
   // AI Operations
   requestBreakdown: (
@@ -75,6 +90,7 @@ const TaskContext = createContext<TaskContextType | undefined>(undefined);
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<Task[]>(() => loadTasksFromStorage());
   const [settings, setSettings] = useState<Settings>(() => loadSettingsFromStorage());
+  const [categories, setCategories] = useState<Record<string, CategoryMeta>>(() => loadCustomCategories());
   const [currentTab, setCurrentTab] = useState<ActiveTab>('now');
   const [activeTaskId, setActiveTaskIdState] = useState<string | null>(() => loadActiveTaskId());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
@@ -83,6 +99,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [captureInitialTab, setCaptureInitialTab] = useState<'quick' | 'braindump'>('quick');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [isRepeatOpen, setIsRepeatOpen] = useState(false);
+  const [repeatTargetTask, setRepeatTargetTask] = useState<Task | null>(null);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -91,6 +110,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     saveTasksToStorage(tasks);
   }, [tasks]);
+
+  // Sync categories to local storage
+  useEffect(() => {
+    saveCustomCategories(categories);
+  }, [categories]);
 
   // Sync settings to local storage & DOM theme
   useEffect(() => {
@@ -135,8 +159,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const found = tasks.find((t) => t.id === activeTaskId && t.status === 'todo');
       if (found) return found;
     }
-    // Fallback: First task scheduled for today (or repeating daily) that is not done
-    const todayTasks = tasks.filter((t) => (t.repeatDaily || t.scheduledDate === todayStr) && t.status === 'todo');
+    // Fallback: First task scheduled for today (or repeating today) that is not done
+    const todayTasks = tasks.filter((t) => isTaskScheduledForDate(t, todayStr) && t.status === 'todo');
     if (todayTasks.length > 0) {
       return todayTasks[0];
     }
@@ -164,6 +188,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setEditingTask(null);
   }, []);
 
+  const openRepeatModal = useCallback((task: Task) => {
+    setRepeatTargetTask(task);
+    setIsRepeatOpen(true);
+  }, []);
+
+  const closeRepeatModal = useCallback(() => {
+    setIsRepeatOpen(false);
+    setRepeatTargetTask(null);
+  }, []);
+
+  const openAddCategoryModal = useCallback(() => {
+    setIsAddCategoryOpen(true);
+  }, []);
+
+  const closeAddCategoryModal = useCallback(() => {
+    setIsAddCategoryOpen(false);
+  }, []);
+
   const startFocus = useCallback((task: Task) => {
     setFocusTask(task);
     setActiveTaskId(task.id);
@@ -184,7 +226,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: new Date().toISOString(),
     };
     setTasks((prev) => [newTask, ...prev]);
-    if ((newTask.scheduledDate === getTodayDateString() || newTask.repeatDaily) && !activeTaskId) {
+    if ((newTask.scheduledDate === getTodayDateString() || newTask.repeatDaily || newTask.repeatType === 'daily') && !activeTaskId) {
       setActiveTaskId(newTask.id);
     }
     return newTask;
@@ -270,11 +312,37 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSettings((prev) => ({ ...prev, ...newSettings }));
   }, []);
 
+  const addCategory = useCallback((label: string, paletteId?: string): CategoryMeta => {
+    const id = label.toLowerCase().replace(/[^a-z0-9]/g, '_') || `cat_${Date.now()}`;
+    const pal = COLOR_PALETTES.find((p) => p.id === paletteId) || COLOR_PALETTES[0];
+    const newCategory: CategoryMeta = {
+      id,
+      label,
+      color: `bg-${pal.id}-600`,
+      borderColor: pal.borderColor,
+      dotColor: pal.dotColor,
+      textColor: pal.textColor,
+      bgLight: pal.bgLight,
+      bgDark: pal.bgDark,
+    };
+
+    setCategories((prev) => ({ ...prev, [id]: newCategory }));
+    return newCategory;
+  }, []);
+
+  const deleteCategory = useCallback((id: string) => {
+    setCategories((prev) => {
+      const copy = { ...prev };
+      delete copy[id];
+      return copy;
+    });
+  }, []);
+
   // AI API with seamless Fallback
   const requestBreakdown = useCallback(
     async (
       title: string,
-      difficulty: 1 | 2 | 3 = settings.difficulty,
+      difficulty: 1 | 2 | 3 = (settings.difficulty || 1),
       notes?: string,
       category?: TaskCategory
     ) => {
@@ -300,11 +368,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await res.json();
         return {
           category: (data.category as TaskCategory) || category || 'other',
-          estimatedMinutes: Number(data.estimatedMinutes) || 20,
+          estimatedMinutes: Number(data.estimatedMinutes) || 15,
           subtasks: Array.isArray(data.subtasks)
             ? data.subtasks.map((s: any) => ({
                 title: String(s.title),
-                estimatedMinutes: Number(s.estimatedMinutes) || 5,
+                estimatedMinutes: Number(s.estimatedMinutes) || 4,
               }))
             : [],
         };
@@ -388,7 +456,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           subtasks: Array.isArray(data.subtasks)
             ? data.subtasks.map((s: any) => ({
                 title: String(s.title),
-                estimatedMinutes: Number(s.estimatedMinutes) || 5,
+                estimatedMinutes: Number(s.estimatedMinutes) || 4,
               }))
             : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
         };
@@ -413,19 +481,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const exportDataJSON = useCallback((): string => {
     const data = {
+      app: 'Remember',
       version: 2,
       exportDate: new Date().toISOString(),
       tasks,
+      categories,
       settings,
     };
     return JSON.stringify(data, null, 2);
-  }, [tasks, settings]);
+  }, [tasks, categories, settings]);
 
   const importDataJSON = useCallback((jsonStr: string): boolean => {
     try {
       const parsed = JSON.parse(jsonStr);
       if (parsed.tasks && Array.isArray(parsed.tasks)) {
         setTasks(parsed.tasks);
+        if (parsed.categories) {
+          setCategories((prev) => ({ ...prev, ...parsed.categories }));
+        }
         if (parsed.settings) {
           setSettings({ ...getDefaultSettings(), ...parsed.settings });
         }
@@ -442,6 +515,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         tasks,
         settings,
+        categories,
         currentTab,
         activeTask,
         focusTask,
@@ -449,6 +523,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         captureInitialTab,
         isEditOpen,
         editingTask,
+        isRepeatOpen,
+        repeatTargetTask,
+        isAddCategoryOpen,
         aiLoading,
         aiError,
         theme: settings.theme,
@@ -457,6 +534,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         closeCapture,
         openEdit,
         closeEdit,
+        openRepeatModal,
+        closeRepeatModal,
+        openAddCategoryModal,
+        closeAddCategoryModal,
         startFocus,
         closeFocus,
         stopFocus,
@@ -470,6 +551,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         scheduleTaskForToday,
         scheduleTaskForDate,
         updateSettings,
+        addCategory,
+        deleteCategory,
         requestBreakdown,
         requestBrainDump,
         requestChatEdit,

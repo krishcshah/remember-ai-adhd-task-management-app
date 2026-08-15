@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CATEGORIES, Task, TaskCategory } from '../types';
+import { DEFAULT_CATEGORIES, Task, TaskCategory } from '../types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,11 +14,13 @@ import {
   Repeat,
   Check,
 } from 'lucide-react';
-import { getTodayDateString } from '../utils/storage';
+import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
 
 export const CalendarView: React.FC = () => {
   const {
     tasks,
+    categories,
+    openRepeatModal,
     scheduleTaskForToday,
     scheduleTaskForDate,
     toggleSubtask,
@@ -31,6 +33,8 @@ export const CalendarView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+
+  const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
 
   // Generate 7 days for current week
   const getWeekDates = (offset: number) => {
@@ -58,13 +62,15 @@ export const CalendarView: React.FC = () => {
 
   const weekDays = getWeekDates(weekOffset);
 
-  // Get all tasks for selected date (including daily recurring tasks)
-  const scheduledForSelected = tasks.filter(
-    (t) => t.repeatDaily || t.scheduledDate === selectedDate
+  // Get all tasks for selected date (including recurring tasks)
+  const scheduledForSelected = tasks.filter((t) =>
+    isTaskScheduledForDate(t, selectedDate)
   );
 
   // Unscheduled tasks (Brain dump inbox)
-  const unscheduledTasks = tasks.filter((t) => !t.repeatDaily && !t.scheduledDate && t.status === 'todo');
+  const unscheduledTasks = tasks.filter(
+    (t) => !t.repeatDaily && t.repeatType !== 'daily' && t.repeatType !== 'weekly' && t.repeatType !== 'weekly_on' && !t.scheduledDate && t.status === 'todo'
+  );
 
   // Month dates generator
   const getMonthDays = () => {
@@ -96,9 +102,9 @@ export const CalendarView: React.FC = () => {
 
   // Helper to get category dots for a day
   const getDotsForDate = (iso: string) => {
-    const dayTasks = tasks.filter((t) => (t.repeatDaily || t.scheduledDate === iso) && t.status === 'todo');
-    const categories = Array.from(new Set(dayTasks.map((t) => t.category))) as TaskCategory[];
-    return categories.slice(0, 4);
+    const dayTasks = tasks.filter((t) => isTaskScheduledForDate(t, iso) && t.status === 'todo');
+    const catList = Array.from(new Set(dayTasks.map((t) => t.category))) as TaskCategory[];
+    return catList.slice(0, 4);
   };
 
   const completedCount = scheduledForSelected.filter((t) => t.status === 'done').length;
@@ -112,7 +118,7 @@ export const CalendarView: React.FC = () => {
             Calendar
           </h1>
           <p className="text-xs text-stone-500 dark:text-stone-400">
-            Day schedule & daily recurring tasks
+            Day schedule & repeating tasks
           </p>
         </div>
 
@@ -203,17 +209,18 @@ export const CalendarView: React.FC = () => {
 
                   {/* Category dot indicators */}
                   <div className="flex items-center gap-0.5 h-2">
-                    {dots.map((cat, i) => (
-                      <span
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{
-                          backgroundColor: isSelected
-                            ? '#FDE047'
-                            : CATEGORIES[cat]?.dotColor || '#78716c',
-                        }}
-                      />
-                    ))}
+                    {dots.map((cat, i) => {
+                      const dotColor = allCategories[cat]?.dotColor || '#78716c';
+                      return (
+                        <span
+                          key={i}
+                          className="w-1.5 h-1.5 rounded-full"
+                          style={{
+                            backgroundColor: isSelected ? '#FDE047' : dotColor,
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </button>
               );
@@ -251,17 +258,18 @@ export const CalendarView: React.FC = () => {
                 >
                   <span className="font-mono text-xs leading-none">{d.dayNumber}</span>
                   <div className="flex gap-0.5 mt-1">
-                    {dots.map((cat, i) => (
-                      <span
-                        key={i}
-                        className="w-1 h-1 rounded-full"
-                        style={{
-                          backgroundColor: isSelected
-                            ? '#FDE047'
-                            : CATEGORIES[cat]?.dotColor || '#78716c',
-                        }}
-                      />
-                    ))}
+                    {dots.map((cat, i) => {
+                      const dotColor = allCategories[cat]?.dotColor || '#78716c';
+                      return (
+                        <span
+                          key={i}
+                          className="w-1 h-1 rounded-full"
+                          style={{
+                            backgroundColor: isSelected ? '#FDE047' : dotColor,
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 </button>
               );
@@ -296,8 +304,19 @@ export const CalendarView: React.FC = () => {
         {scheduledForSelected.length > 0 ? (
           <div className="space-y-2.5">
             {scheduledForSelected.map((task) => {
-              const meta = CATEGORIES[task.category] || CATEGORIES.other;
+              const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
               const isDone = task.status === 'done';
+
+              const getRepeatBadge = () => {
+                if (task.repeatType === 'daily' || task.repeatDaily) return 'Daily';
+                if (task.repeatType === 'weekly') return 'Weekly';
+                if (task.repeatType === 'weekly_on' && task.repeatDays?.length) {
+                  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                  return task.repeatDays.map((d) => dayNames[d]).join(', ');
+                }
+                return null;
+              };
+              const repeatBadge = getRepeatBadge();
 
               return (
                 <div
@@ -330,11 +349,18 @@ export const CalendarView: React.FC = () => {
                           >
                             {task.title}
                           </p>
-                          {task.repeatDaily && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-[10px] font-bold">
-                              <Repeat className="w-2.5 h-2.5" /> Daily
-                            </span>
-                          )}
+                          {/* Small repeat button/badge */}
+                          <button
+                            onClick={() => openRepeatModal(task)}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors ${
+                              repeatBadge
+                                ? 'bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
+                                : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
+                            }`}
+                            title="Configure repeat"
+                          >
+                            <Repeat className="w-2.5 h-2.5" /> {repeatBadge || 'Repeat'}
+                          </button>
                         </div>
 
                         <div className="flex items-center gap-2 mt-1">

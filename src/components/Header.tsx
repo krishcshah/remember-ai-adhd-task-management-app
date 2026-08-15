@@ -1,17 +1,15 @@
 import React from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { Anchor, Sparkles, SlidersHorizontal, Moon, Sun } from 'lucide-react';
+import { Sparkles, SlidersHorizontal, Moon, Sun, BookmarkCheck } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { currentTab, setCurrentTab, settings, updateSettings, tasks } = useTaskContext();
+  const { currentTab, setCurrentTab, settings, updateSettings } = useTaskContext();
 
   const todayFormatted = new Intl.DateTimeFormat('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   }).format(new Date());
-
-  const activeCount = tasks.filter((t) => t.status === 'todo').length;
 
   const toggleTheme = () => {
     const nextTheme = settings.theme === 'dark' ? 'light' : 'dark';
@@ -26,15 +24,15 @@ export const Header: React.FC = () => {
           onClick={() => setCurrentTab('now')}
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
-          <div className="w-9 h-9 rounded-xl bg-teal-800 dark:bg-teal-700 flex items-center justify-center text-amber-400 shadow-sm transition-transform group-hover:scale-105">
-            <Anchor className="w-5 h-5" />
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-900 to-teal-700 dark:from-teal-800 dark:to-teal-600 flex items-center justify-center text-amber-400 shadow-sm transition-transform group-hover:scale-105 border border-amber-400/30">
+            <BookmarkCheck className="w-5 h-5 stroke-[2.2px]" />
           </div>
           <div>
             <div className="flex items-center gap-1.5">
               <span className="font-display font-bold text-lg text-stone-800 dark:text-stone-100 tracking-tight leading-none">
-                Anchor
+                Remember
               </span>
-              <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/40 dark:border-amber-700/40 flex items-center gap-0.5">
+              <span className="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/40 dark:border-amber-700/40 flex items-center gap-0.5">
                 <Sparkles className="w-2.5 h-2.5" /> AI
               </span>
             </div>

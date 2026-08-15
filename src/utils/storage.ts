@@ -1,8 +1,11 @@
-import { Task, Settings } from '../types';
+import { Task, Settings, CategoryMeta, DEFAULT_CATEGORIES } from '../types';
 
-const TASKS_STORAGE_KEY = 'anchor_tasks_v1';
-const SETTINGS_STORAGE_KEY = 'anchor_settings_v1';
-const ACTIVE_TASK_KEY = 'anchor_active_task_v1';
+const TASKS_STORAGE_KEY = 'remember_tasks_v2';
+const LEGACY_TASKS_STORAGE_KEY = 'anchor_tasks_v1';
+const SETTINGS_STORAGE_KEY = 'remember_settings_v2';
+const LEGACY_SETTINGS_STORAGE_KEY = 'anchor_settings_v1';
+const ACTIVE_TASK_KEY = 'remember_active_task_v2';
+const CATEGORIES_STORAGE_KEY = 'remember_custom_categories_v2';
 
 export function getTodayDateString(): string {
   const now = new Date();
@@ -14,9 +17,9 @@ export function getTodayDateString(): string {
 
 export function getDefaultSettings(): Settings {
   return {
-    context: 'I have ADHD and struggle with task initiation in the afternoon. Keeping steps ultra-concrete and under 15 minutes helps me avoid overwhelm.',
+    context: 'I have ADHD and struggle with task initiation. Keeping steps ultra-concrete and bite-sized under 15 minutes helps me avoid overwhelm.',
     theme: 'light',
-    difficulty: 2,
+    difficulty: 1, // Default to Small / Bite-size granularity everywhere
   };
 }
 
@@ -35,6 +38,7 @@ export function getDefaultInitialTasks(): Task[] {
       scheduledDate: today,
       scheduledTime: '08:00',
       repeatDaily: true,
+      repeatType: 'daily',
       status: 'todo',
       notes: 'Daily grounding start to prepare mind and body.',
       createdAt: new Date().toISOString(),
@@ -48,7 +52,7 @@ export function getDefaultInitialTasks(): Task[] {
       id: 'task-1',
       title: 'Tidy up desk and organize workspace',
       category: 'personal',
-      estMinutes: 20,
+      estMinutes: 15,
       scheduledDate: today,
       scheduledTime: '10:30',
       status: 'todo',
@@ -65,7 +69,7 @@ export function getDefaultInitialTasks(): Task[] {
       id: 'task-2',
       title: 'Prepare quarterly tax receipts and summary',
       category: 'work',
-      estMinutes: 35,
+      estMinutes: 30,
       scheduledDate: today,
       scheduledTime: '14:00',
       status: 'todo',
@@ -74,7 +78,7 @@ export function getDefaultInitialTasks(): Task[] {
       subtasks: [
         { id: 'sub-2-1', title: 'Open banking app and download last month statement PDF', estMinutes: 5, done: false },
         { id: 'sub-2-2', title: 'Search email for "receipt" or "invoice" and save to tax folder', estMinutes: 10, done: false },
-        { id: 'sub-2-3', title: 'Log total expenses into accounting spreadsheet', estMinutes: 12, done: false },
+        { id: 'sub-2-3', title: 'Log total expenses into accounting spreadsheet', estMinutes: 10, done: false },
         { id: 'sub-2-4', title: 'Send summary email to accountant', estMinutes: 5, done: false },
       ],
     },
@@ -98,7 +102,7 @@ export function getDefaultInitialTasks(): Task[] {
       id: 'task-4',
       title: 'Brainstorm birthday present idea for Maya',
       category: 'personal',
-      estMinutes: 20,
+      estMinutes: 15,
       scheduledDate: null, // Unscheduled Brain Dump Inbox
       scheduledTime: null,
       status: 'todo',
@@ -109,26 +113,44 @@ export function getDefaultInitialTasks(): Task[] {
         { id: 'sub-4-2', title: 'Check local ceramic artisan shop website', estMinutes: 10, done: false },
       ],
     },
-    {
-      id: 'task-5',
-      title: 'Pick up dry cleaning on 4th street',
-      category: 'errands',
-      estMinutes: 25,
-      scheduledDate: null, // Unscheduled Inbox
-      scheduledTime: null,
-      status: 'todo',
-      createdAt: new Date(Date.now() - 28800000).toISOString(),
-      subtasks: [
-        { id: 'sub-5-1', title: 'Grab dry cleaning claim ticket from counter', estMinutes: 2, done: false },
-        { id: 'sub-5-2', title: 'Drive to dry cleaners before 6 PM close', estMinutes: 15, done: false },
-      ],
-    },
   ];
+}
+
+/**
+ * Checks whether a task should appear on a specific ISO date ('YYYY-MM-DD').
+ * Handles daily repeat, weekly on specific days, weekly on created day, and direct scheduled date.
+ */
+export function isTaskScheduledForDate(task: Task, dateIso: string): boolean {
+  if (task.repeatType === 'daily' || task.repeatDaily) {
+    return true;
+  }
+
+  const targetDate = new Date(dateIso + 'T12:00:00');
+  // Day of week: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+  const dayOfWeek = targetDate.getDay();
+
+  if (task.repeatType === 'weekly_on' && Array.isArray(task.repeatDays) && task.repeatDays.length > 0) {
+    return task.repeatDays.includes(dayOfWeek);
+  }
+
+  if (task.repeatType === 'weekly') {
+    // If weekly without explicit repeatDays, use the scheduled date or created date's day of week
+    const baseDateStr = task.scheduledDate || task.createdAt;
+    if (baseDateStr) {
+      const baseDate = new Date(baseDateStr.includes('T') ? baseDateStr : baseDateStr + 'T12:00:00');
+      return baseDate.getDay() === dayOfWeek;
+    }
+  }
+
+  return task.scheduledDate === dateIso;
 }
 
 export function loadTasksFromStorage(): Task[] {
   try {
-    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    let raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+    }
     if (!raw) {
       const initial = getDefaultInitialTasks();
       saveTasksToStorage(initial);
@@ -150,9 +172,31 @@ export function saveTasksToStorage(tasks: Task[]) {
   }
 }
 
+export function loadCustomCategories(): Record<string, CategoryMeta> {
+  try {
+    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
+    if (!raw) return DEFAULT_CATEGORIES;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_CATEGORIES, ...parsed };
+  } catch {
+    return DEFAULT_CATEGORIES;
+  }
+}
+
+export function saveCustomCategories(categories: Record<string, CategoryMeta>) {
+  try {
+    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
+  } catch (err) {
+    console.error('Failed to save categories:', err);
+  }
+}
+
 export function loadSettingsFromStorage(): Settings {
   try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    let raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
+    }
     if (!raw) return getDefaultSettings();
     return { ...getDefaultSettings(), ...JSON.parse(raw) };
   } catch (err) {

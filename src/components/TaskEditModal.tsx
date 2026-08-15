@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CATEGORIES, TaskCategory, Task, Subtask } from '../types';
+import { DEFAULT_CATEGORIES, TaskCategory, Subtask, RepeatType, CategoryMeta } from '../types';
 import {
   X,
   Sparkles,
@@ -12,18 +12,35 @@ import {
   Wand2,
   Play,
   Repeat,
+  Scissors,
+  Zap,
+  MessageSquareText,
+  Tag,
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
+
+const DAYS_OF_WEEK = [
+  { id: 1, label: 'Mon' },
+  { id: 2, label: 'Tue' },
+  { id: 3, label: 'Wed' },
+  { id: 4, label: 'Thu' },
+  { id: 5, label: 'Fri' },
+  { id: 6, label: 'Sat' },
+  { id: 0, label: 'Sun' },
+];
 
 export const TaskEditModal: React.FC = () => {
   const {
     isEditOpen,
     closeEdit,
     editingTask,
+    categories,
+    openAddCategoryModal,
     updateTask,
     deleteTask,
     startFocus,
     requestChatEdit,
+    requestBreakdown,
     aiLoading,
   } = useTaskContext();
 
@@ -31,11 +48,16 @@ export const TaskEditModal: React.FC = () => {
   const [category, setCategory] = useState<TaskCategory>('work');
   const [scheduledDate, setScheduledDate] = useState<string | null>(null);
   const [scheduledTime, setScheduledTime] = useState<string>('');
-  const [repeatDaily, setRepeatDaily] = useState<boolean>(false);
+  const [repeatType, setRepeatType] = useState<RepeatType>('none');
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
   const [estMinutes, setEstMinutes] = useState<number>(20);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
+  
+  // AI Tweak states
+  const [showCustomPromptBox, setShowCustomPromptBox] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [tweakingAction, setTweakingAction] = useState<string | null>(null);
 
   useEffect(() => {
     if (editingTask) {
@@ -43,25 +65,45 @@ export const TaskEditModal: React.FC = () => {
       setCategory(editingTask.category);
       setScheduledDate(editingTask.scheduledDate);
       setScheduledTime(editingTask.scheduledTime || '');
-      setRepeatDaily(Boolean(editingTask.repeatDaily));
+      if (editingTask.repeatType) {
+        setRepeatType(editingTask.repeatType);
+        setRepeatDays(editingTask.repeatDays || []);
+      } else if (editingTask.repeatDaily) {
+        setRepeatType('daily');
+        setRepeatDays([]);
+      } else {
+        setRepeatType('none');
+        setRepeatDays([]);
+      }
       setNotes(editingTask.notes || '');
       setEstMinutes(editingTask.estMinutes);
       setSubtasks(editingTask.subtasks || []);
       setAiPrompt('');
+      setShowCustomPromptBox(false);
     }
   }, [editingTask]);
 
   if (!isEditOpen || !editingTask) return null;
 
+  const toggleRepeatDay = (dayId: number) => {
+    setRepeatDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId]
+    );
+  };
+
   const handleSave = () => {
     if (!title.trim()) return;
+
+    const isDaily = repeatType === 'daily';
 
     updateTask(editingTask.id, {
       title: title.trim(),
       category,
-      scheduledDate: repeatDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
+      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
       scheduledTime: scheduledTime.trim() || null,
-      repeatDaily: Boolean(repeatDaily),
+      repeatDaily: isDaily,
+      repeatType,
+      repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
       notes: notes.trim() || undefined,
       estMinutes: estMinutes || 20,
       subtasks,
@@ -75,8 +117,10 @@ export const TaskEditModal: React.FC = () => {
     closeEdit();
   };
 
-  const handleApplyAiEdit = async () => {
+  // AI Tweaker: 1. Custom Instruction
+  const handleApplyCustomAiEdit = async () => {
     if (!aiPrompt.trim()) return;
+    setTweakingAction('custom');
     try {
       const result = await requestChatEdit(
         {
@@ -101,8 +145,56 @@ export const TaskEditModal: React.FC = () => {
         }))
       );
       setAiPrompt('');
+      setShowCustomPromptBox(false);
     } catch (e) {
       console.error(e);
+    } finally {
+      setTweakingAction(null);
+    }
+  };
+
+  // AI Tweaker: 2. Bite-Sized
+  const handleApplyBiteSized = async () => {
+    setTweakingAction('bitesize');
+    try {
+      const res = await requestBreakdown(title, 1, notes, category);
+      setEstMinutes(res.estimatedMinutes);
+      setSubtasks(
+        res.subtasks.map((s, idx) => ({
+          id: `edit-sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTweakingAction(null);
+    }
+  };
+
+  // AI Tweaker: 3. Faster
+  const handleApplyFaster = async () => {
+    setTweakingAction('faster');
+    try {
+      const res = await requestChatEdit(
+        { ...editingTask, title, category, estMinutes, subtasks },
+        'Reduce estimated time and tighten subtasks to finish faster'
+      );
+      setEstMinutes(res.estimatedMinutes);
+      setSubtasks(
+        res.subtasks.map((s, idx) => ({
+          id: `edit-sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        }))
+      );
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTweakingAction(null);
     }
   };
 
@@ -117,6 +209,8 @@ export const TaskEditModal: React.FC = () => {
       },
     ]);
   };
+
+  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
     <div className="fixed inset-0 z-40 bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -162,42 +256,98 @@ export const TaskEditModal: React.FC = () => {
             />
           </div>
 
-          {/* AI Chat-Edit / Tweak Panel */}
-          <div className="bg-amber-50/70 dark:bg-amber-950/30 p-3.5 rounded-2xl border border-amber-200/70 dark:border-amber-900/40 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900 dark:text-amber-300">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Chat Tweak (Natural Language)</span>
+          {/* 3 AI TWEAKER BUTTONS IN EDIT MODAL */}
+          <div className="bg-stone-50 dark:bg-stone-850/60 p-3.5 rounded-2xl border border-stone-200/80 dark:border-stone-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-stone-600 dark:text-stone-300 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                AI Task Tweakers
+              </span>
+              {aiLoading && (
+                <span className="text-[11px] font-medium text-amber-600 animate-pulse">
+                  AI is updating...
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="e.g. split step 2 into two, make easier, shorten time..."
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleApplyAiEdit();
-                }}
-                className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-amber-300/80 dark:border-amber-800 text-stone-800 dark:text-stone-200 focus:outline-none"
-              />
+
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
-                onClick={handleApplyAiEdit}
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+                onClick={() => setShowCustomPromptBox(!showCustomPromptBox)}
+                disabled={aiLoading}
+                className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  showCustomPromptBox
+                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
+                    : 'bg-white dark:bg-stone-900 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                }`}
               >
-                <Wand2 className="w-3.5 h-3.5" />
-                {aiLoading ? '...' : 'Tweak'}
+                <MessageSquareText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="truncate">AI Tweak</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleApplyBiteSized}
+                disabled={aiLoading}
+                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <Scissors className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                <span className="truncate">Bite-Sized</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleApplyFaster}
+                disabled={aiLoading}
+                className="py-2 px-2.5 rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="truncate">Faster</span>
               </button>
             </div>
+
+            {showCustomPromptBox && (
+              <div className="pt-2 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. split step 2, make simpler, reduce time..."
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleApplyCustomAiEdit();
+                  }}
+                  autoFocus
+                  className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-800 text-stone-800 dark:text-stone-200 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCustomAiEdit}
+                  disabled={aiLoading || !aiPrompt.trim()}
+                  className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Wand2 className="w-3.5 h-3.5" />
+                  Apply
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Category */}
+          {/* Category with + Add Category button */}
           <div>
-            <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-              Category
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
+                Category
+              </label>
+              <button
+                type="button"
+                onClick={openAddCategoryModal}
+                className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1"
+              >
+                <Plus className="w-3.5 h-3.5" /> New Category
+              </button>
+            </div>
             <div className="flex flex-wrap gap-1.5">
-              {Object.values(CATEGORIES).map((cat) => (
+              {Object.values(allCategories).map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
@@ -215,28 +365,85 @@ export const TaskEditModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Repeat Daily Option */}
-          <div className="p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between">
+          {/* Repeat Schedule Section */}
+          <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-850/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
             <div className="flex items-center gap-2">
               <div className="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center">
                 <Repeat className="w-3.5 h-3.5" />
               </div>
-              <div>
-                <label htmlFor="editRepeatDaily" className="text-xs font-bold text-stone-800 dark:text-stone-200 cursor-pointer">
-                  Repeat Daily
-                </label>
-                <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                  Repeats every day at the scheduled time
-                </p>
-              </div>
+              <label className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                Repeat Pattern
+              </label>
             </div>
-            <input
-              type="checkbox"
-              id="editRepeatDaily"
-              checked={repeatDaily}
-              onChange={(e) => setRepeatDaily(e.target.checked)}
-              className="w-4 h-4 rounded text-teal-700 focus:ring-teal-500 accent-teal-700 cursor-pointer"
-            />
+
+            <div className="grid grid-cols-4 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setRepeatType('none')}
+                className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                  repeatType === 'none'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                }`}
+              >
+                None
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatType('daily')}
+                className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                  repeatType === 'daily'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                }`}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatType('weekly')}
+                className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                  repeatType === 'weekly'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                }`}
+              >
+                Weekly
+              </button>
+              <button
+                type="button"
+                onClick={() => setRepeatType('weekly_on')}
+                className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                  repeatType === 'weekly_on'
+                    ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                    : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                }`}
+              >
+                Weekly on...
+              </button>
+            </div>
+
+            {repeatType === 'weekly_on' && (
+              <div className="grid grid-cols-7 gap-1 pt-1">
+                {DAYS_OF_WEEK.map((d) => {
+                  const isSelected = repeatDays.includes(d.id);
+                  return (
+                    <button
+                      key={d.id}
+                      type="button"
+                      onClick={() => toggleRepeatDay(d.id)}
+                      className={`h-8 rounded-xl text-[11px] font-bold transition-all ${
+                        isSelected
+                          ? 'bg-teal-800 text-white'
+                          : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200'
+                      }`}
+                    >
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Date & Time */}

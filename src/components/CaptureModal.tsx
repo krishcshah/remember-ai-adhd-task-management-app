@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CATEGORIES, TaskCategory } from '../types';
+import { DEFAULT_CATEGORIES, TaskCategory, RepeatType, CategoryMeta } from '../types';
 import {
   X,
   Sparkles,
@@ -14,11 +14,23 @@ import {
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
 
+const DAYS_OF_WEEK = [
+  { id: 1, label: 'Mon' },
+  { id: 2, label: 'Tue' },
+  { id: 3, label: 'Wed' },
+  { id: 4, label: 'Thu' },
+  { id: 5, label: 'Fri' },
+  { id: 6, label: 'Sat' },
+  { id: 0, label: 'Sun' },
+];
+
 export const CaptureModal: React.FC = () => {
   const {
     isCaptureOpen,
     closeCapture,
     captureInitialTab,
+    categories,
+    openAddCategoryModal,
     addTask,
     addMultipleTasks,
     requestBreakdown,
@@ -29,16 +41,17 @@ export const CaptureModal: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'quick' | 'braindump'>(captureInitialTab);
 
-  // Quick Add State
+  // Quick Add State - default difficulty set to 1 (Small / Bite-sized)
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState<TaskCategory>('work');
   const [scheduledDate, setScheduledDate] = useState<string | null>(getTodayDateString());
   const [scheduledTime, setScheduledTime] = useState<string>('');
-  const [repeatDaily, setRepeatDaily] = useState<boolean>(false);
+  const [repeatType, setRepeatType] = useState<RepeatType>('none');
+  const [repeatDays, setRepeatDays] = useState<number[]>([]);
   const [notes, setNotes] = useState('');
-  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(settings.difficulty || 2);
+  const [difficulty, setDifficulty] = useState<1 | 2 | 3>(settings.difficulty || 1);
   const [subtasks, setSubtasks] = useState<{ id: string; title: string; estMinutes: number }[]>([]);
-  const [estTotalMinutes, setEstTotalMinutes] = useState<number>(20);
+  const [estTotalMinutes, setEstTotalMinutes] = useState<number>(15);
 
   // Brain Dump State
   const [brainDumpText, setBrainDumpText] = useState('');
@@ -55,23 +68,31 @@ export const CaptureModal: React.FC = () => {
     setActiveTab(captureInitialTab);
   }, [captureInitialTab]);
 
-  // Reset form when modal closes
+  // Reset form when modal opens/closes
   useEffect(() => {
     if (!isCaptureOpen) {
       setTitle('');
       setCategory('work');
       setScheduledDate(getTodayDateString());
       setScheduledTime('');
-      setRepeatDaily(false);
+      setRepeatType('none');
+      setRepeatDays([]);
       setNotes('');
+      setDifficulty(settings.difficulty || 1);
       setSubtasks([]);
-      setEstTotalMinutes(20);
+      setEstTotalMinutes(15);
       setBrainDumpText('');
       setExtractedTasks([]);
     }
-  }, [isCaptureOpen]);
+  }, [isCaptureOpen, settings.difficulty]);
 
   if (!isCaptureOpen) return null;
+
+  const toggleRepeatDay = (dayId: number) => {
+    setRepeatDays((prev) =>
+      prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId]
+    );
+  };
 
   // Run AI Magic Breakdown for quick add
   const handleGenerateMagicSubtasks = async () => {
@@ -107,13 +128,17 @@ export const CaptureModal: React.FC = () => {
   const handleSaveQuickTask = () => {
     if (!title.trim()) return;
 
+    const isDaily = repeatType === 'daily';
+
     addTask({
       title: title.trim(),
       category,
-      estMinutes: estTotalMinutes || 20,
-      scheduledDate: repeatDaily ? getTodayDateString() : scheduledDate,
+      estMinutes: estTotalMinutes || 15,
+      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
       scheduledTime: scheduledTime.trim() || null,
-      repeatDaily: Boolean(repeatDaily),
+      repeatDaily: isDaily,
+      repeatType,
+      repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
       status: 'todo',
       notes: notes.trim() || undefined,
       subtasks: subtasks.map((s) => ({
@@ -149,6 +174,8 @@ export const CaptureModal: React.FC = () => {
     addMultipleTasks(payload);
     closeCapture();
   };
+
+  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
     <div className="fixed inset-0 z-40 bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -210,37 +237,103 @@ export const CaptureModal: React.FC = () => {
                 />
               </div>
 
-              {/* Repeat Daily Option */}
-              <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center">
-                    <Repeat className="w-4 h-4" />
+              {/* Repeat Options */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-teal-100 dark:bg-teal-950/80 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+                    <Repeat className="w-3.5 h-3.5" />
                   </div>
-                  <div>
-                    <label htmlFor="repeatDailyCheck" className="text-xs font-bold text-stone-800 dark:text-stone-200 cursor-pointer">
-                      Repeat Daily
-                    </label>
-                    <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                      Schedules this task every day at the specified time
-                    </p>
-                  </div>
+                  <label className="text-xs font-bold text-stone-800 dark:text-stone-200">
+                    Repeat Pattern
+                  </label>
                 </div>
-                <input
-                  type="checkbox"
-                  id="repeatDailyCheck"
-                  checked={repeatDaily}
-                  onChange={(e) => setRepeatDaily(e.target.checked)}
-                  className="w-4 h-4 rounded text-teal-700 focus:ring-teal-500 accent-teal-700 cursor-pointer"
-                />
+
+                <div className="grid grid-cols-4 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setRepeatType('none')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                      repeatType === 'none'
+                        ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                        : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    None
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRepeatType('daily')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                      repeatType === 'daily'
+                        ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                        : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    Daily
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRepeatType('weekly')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                      repeatType === 'weekly'
+                        ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                        : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRepeatType('weekly_on')}
+                    className={`py-1.5 px-2 rounded-xl text-xs font-semibold border transition-all ${
+                      repeatType === 'weekly_on'
+                        ? 'bg-teal-800 text-white border-teal-800 shadow-xs'
+                        : 'bg-white dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
+                    }`}
+                  >
+                    Weekly on...
+                  </button>
+                </div>
+
+                {repeatType === 'weekly_on' && (
+                  <div className="grid grid-cols-7 gap-1 pt-1">
+                    {DAYS_OF_WEEK.map((d) => {
+                      const isSelected = repeatDays.includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => toggleRepeatDay(d.id)}
+                          className={`h-8 rounded-xl text-[11px] font-bold transition-all ${
+                            isSelected
+                              ? 'bg-teal-800 text-white'
+                              : 'bg-white dark:bg-stone-800 text-stone-600 dark:text-stone-400 hover:bg-stone-200'
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Category selector */}
+              {/* Category selector with + Add Category */}
               <div>
-                <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                  Category
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
+                    Category
+                  </label>
+                  <button
+                    type="button"
+                    onClick={openAddCategoryModal}
+                    className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> New Category
+                  </button>
+                </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {Object.values(CATEGORIES).map((cat) => (
+                  {Object.values(allCategories).map((cat) => (
                     <button
                       key={cat.id}
                       type="button"
@@ -260,7 +353,7 @@ export const CaptureModal: React.FC = () => {
 
               {/* Schedule Date & Time */}
               <div className="grid grid-cols-2 gap-3">
-                {!repeatDaily ? (
+                {repeatType !== 'daily' ? (
                   <div>
                     <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
                       When?
@@ -298,104 +391,69 @@ export const CaptureModal: React.FC = () => {
                   </div>
                 )}
 
-                {!repeatDaily ? (
-                  <div>
-                    <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                      Time of Day (Optional)
-                    </label>
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
+                    {repeatType !== 'daily' ? 'Time (Optional)' : 'Active Date'}
+                  </label>
+                  {repeatType !== 'daily' ? (
                     <input
                       type="time"
                       value={scheduledTime}
                       onChange={(e) => setScheduledTime(e.target.value)}
                       className="w-full px-3 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200"
                     />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                      Subtask Detail
-                    </label>
-                    <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(1)}
-                        className={`flex-1 py-1 text-[11px] font-bold rounded-lg ${
-                          difficulty === 1
-                            ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                            : 'text-stone-500'
-                        }`}
-                      >
-                        1 Small
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(2)}
-                        className={`flex-1 py-1 text-[11px] font-bold rounded-lg ${
-                          difficulty === 2
-                            ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                            : 'text-stone-500'
-                        }`}
-                      >
-                        2 Normal
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDifficulty(3)}
-                        className={`flex-1 py-1 text-[11px] font-bold rounded-lg ${
-                          difficulty === 3
-                            ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                            : 'text-stone-500'
-                        }`}
-                      >
-                        3 Deep
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  ) : (
+                    <input
+                      type="date"
+                      value={scheduledDate || getTodayDateString()}
+                      onChange={(e) => setScheduledDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200"
+                    />
+                  )}
+                </div>
               </div>
 
-              {!repeatDaily && (
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                    Subtask Granularity
-                  </label>
-                  <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-xl">
-                    <button
-                      type="button"
-                      onClick={() => setDifficulty(1)}
-                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${
-                        difficulty === 1
-                          ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                          : 'text-stone-500'
-                      }`}
-                    >
-                      1 Small (3-4 micro steps)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDifficulty(2)}
-                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${
-                        difficulty === 2
-                          ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                          : 'text-stone-500'
-                      }`}
-                    >
-                      2 Normal (4-5 steps)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDifficulty(3)}
-                      className={`flex-1 py-1.5 text-[11px] font-bold rounded-lg ${
-                        difficulty === 3
-                          ? 'bg-white dark:bg-stone-700 text-teal-900 dark:text-teal-200 shadow-xs'
-                          : 'text-stone-500'
-                      }`}
-                    >
-                      3 Deep (6+ steps)
-                    </button>
-                  </div>
+              {/* Subtask Granularity Default: Level 1 Small */}
+              <div>
+                <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
+                  Subtask Granularity (Default: Small)
+                </label>
+                <div className="flex items-center gap-1.5 bg-stone-100 dark:bg-stone-800 p-1.5 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setDifficulty(1)}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      difficulty === 1
+                        ? 'bg-teal-800 text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                    }`}
+                  >
+                    1 Small (3-4 micro steps)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDifficulty(2)}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      difficulty === 2
+                        ? 'bg-teal-800 text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                    }`}
+                  >
+                    2 Normal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDifficulty(3)}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                      difficulty === 3
+                        ? 'bg-teal-800 text-white shadow-xs'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                    }`}
+                  >
+                    3 Deep
+                  </button>
                 </div>
-              )}
+              </div>
 
               {/* Magic AI Breakdown Button */}
               <div className="pt-1">
@@ -410,8 +468,8 @@ export const CaptureModal: React.FC = () => {
                     {aiLoading
                       ? 'AI is breaking down steps...'
                       : subtasks.length > 0
-                      ? 'Regenerate Magic Subtasks'
-                      : 'Magic Subtasks Breakdown'}
+                      ? 'Regenerate Small Steps'
+                      : 'Generate Bite-Sized Steps with AI'}
                   </span>
                 </button>
               </div>
@@ -420,7 +478,7 @@ export const CaptureModal: React.FC = () => {
               {subtasks.length > 0 && (
                 <div className="bg-stone-50 dark:bg-stone-850/60 p-4 rounded-2xl border border-stone-200/80 dark:border-stone-700 space-y-2">
                   <div className="flex items-center justify-between text-xs font-bold text-stone-700 dark:text-stone-300">
-                    <span>Generated Steps ({subtasks.length})</span>
+                    <span>Generated Micro-Steps ({subtasks.length})</span>
                     <span className="font-mono text-stone-500">~{estTotalMinutes} min total</span>
                   </div>
 
@@ -517,7 +575,7 @@ export const CaptureModal: React.FC = () => {
 
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {extractedTasks.map((t, idx) => {
-                      const meta = CATEGORIES[t.category] || CATEGORIES.other;
+                      const meta = allCategories[t.category] || allCategories.other || DEFAULT_CATEGORIES.other;
                       return (
                         <div
                           key={idx}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTaskContext } from '../context/TaskContext';
-import { CATEGORIES } from '../types';
+import { DEFAULT_CATEGORIES } from '../types';
 import {
   Play,
   CheckCircle2,
@@ -8,40 +8,45 @@ import {
   Sparkles,
   ChevronRight,
   ChevronLeft,
-  Calendar,
   Clock,
   Pencil,
   Plus,
   Compass,
-  ArrowRight,
   Wand2,
   Check,
-  RotateCcw,
+  Repeat,
+  Zap,
+  Scissors,
+  MessageSquareText,
 } from 'lucide-react';
-import { getTodayDateString } from '../utils/storage';
+import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
 
 export const NowView: React.FC = () => {
   const {
     activeTask,
     tasks,
+    categories,
     setActiveTaskId,
     toggleSubtask,
     setTaskDone,
     startFocus,
     openEdit,
     openCapture,
+    openRepeatModal,
     requestChatEdit,
+    requestBreakdown,
     updateTask,
     aiLoading,
   } = useTaskContext();
 
   const [isUpNextExpanded, setIsUpNextExpanded] = useState(false);
   const [quickAiPrompt, setQuickAiPrompt] = useState('');
-  const [showAiTweakInput, setShowAiTweakInput] = useState(false);
+  const [showCustomPromptBox, setShowCustomPromptBox] = useState(false);
+  const [tweakingAction, setTweakingAction] = useState<string | null>(null);
 
   const todayStr = getTodayDateString();
   const todayTasks = tasks.filter(
-    (t) => t.status === 'todo' && (t.scheduledDate === todayStr || !t.scheduledDate)
+    (t) => t.status === 'todo' && isTaskScheduledForDate(t, todayStr)
   );
 
   const currentIndex = activeTask
@@ -62,8 +67,10 @@ export const NowView: React.FC = () => {
     setActiveTaskId(todayTasks[prevIdx].id);
   };
 
-  const handleApplyAiTweak = async (promptText: string) => {
+  // AI Tweaker: 1. Custom prompt tweak
+  const handleApplyCustomAiTweak = async (promptText: string) => {
     if (!activeTask || !promptText.trim()) return;
+    setTweakingAction('custom');
     try {
       const updated = await requestChatEdit(activeTask, promptText);
       updateTask(activeTask.id, {
@@ -77,10 +84,64 @@ export const NowView: React.FC = () => {
           done: false,
         })),
       });
-      setShowAiTweakInput(false);
+      setShowCustomPromptBox(false);
       setQuickAiPrompt('');
     } catch (err) {
       console.error(err);
+    } finally {
+      setTweakingAction(null);
+    }
+  };
+
+  // AI Tweaker: 2. Instant Bite-Sized Breakdown
+  const handleApplyBiteSizedTweak = async () => {
+    if (!activeTask) return;
+    setTweakingAction('bitesize');
+    try {
+      const updated = await requestBreakdown(
+        activeTask.title,
+        1, // 1 = Bite-sized granularity
+        activeTask.notes,
+        activeTask.category
+      );
+      updateTask(activeTask.id, {
+        estMinutes: updated.estimatedMinutes,
+        subtasks: updated.subtasks.map((s, idx) => ({
+          id: `sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTweakingAction(null);
+    }
+  };
+
+  // AI Tweaker: 3. Instant Faster / Over-estimated Time Trimmer
+  const handleApplyFasterTweak = async () => {
+    if (!activeTask) return;
+    setTweakingAction('faster');
+    try {
+      const updated = await requestChatEdit(
+        activeTask,
+        'Reduce total time significantly because it was over-estimated, tighten and streamline all steps to be completed much faster'
+      );
+      updateTask(activeTask.id, {
+        estMinutes: updated.estimatedMinutes,
+        subtasks: updated.subtasks.map((s, idx) => ({
+          id: `sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        })),
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setTweakingAction(null);
     }
   };
 
@@ -95,7 +156,7 @@ export const NowView: React.FC = () => {
           Clear horizon
         </h2>
         <p className="text-stone-600 dark:text-stone-400 text-sm leading-relaxed mb-8">
-          Nothing queued right now. Take a breath, or brain dump whatever is rattling around in your head.
+          Nothing queued for today right now. Take a breath, or brain dump whatever is on your mind.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full">
@@ -119,16 +180,33 @@ export const NowView: React.FC = () => {
     );
   }
 
-  const categoryMeta = CATEGORIES[activeTask.category] || CATEGORIES.other;
+  const categoryMeta =
+    categories[activeTask.category] ||
+    DEFAULT_CATEGORIES[activeTask.category] ||
+    DEFAULT_CATEGORIES.other;
+
   const completedSubtasksCount = activeTask.subtasks.filter((s) => s.done).length;
   const totalSubtasks = activeTask.subtasks.length;
   const progressPercent = totalSubtasks > 0 ? (completedSubtasksCount / totalSubtasks) * 100 : 0;
+
+  // Format repeat label for the badge
+  const getRepeatLabel = () => {
+    if (activeTask.repeatType === 'daily' || activeTask.repeatDaily) return 'Daily';
+    if (activeTask.repeatType === 'weekly') return 'Weekly';
+    if (activeTask.repeatType === 'weekly_on' && activeTask.repeatDays?.length) {
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      return activeTask.repeatDays.map((d) => dayNames[d]).join(', ');
+    }
+    return null;
+  };
+
+  const repeatLabel = getRepeatLabel();
 
   return (
     <div className="flex-1 flex flex-col justify-between max-w-xl mx-auto w-full px-4 pt-3 pb-24">
       {/* Top Navigator & Position Badge */}
       <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${categoryMeta.bgLight} ${categoryMeta.bgDark} ${categoryMeta.borderColor} ${categoryMeta.textColor} flex items-center gap-1.5`}
           >
@@ -143,6 +221,20 @@ export const NowView: React.FC = () => {
             <Clock className="w-3 h-3" />
             ~{activeTask.estMinutes}m
           </span>
+
+          {/* Small Repeat Badge / Button */}
+          <button
+            onClick={() => openRepeatModal(activeTask)}
+            title="Configure repeating schedule"
+            className={`text-xs font-medium px-2 py-1 rounded-full border flex items-center gap-1 transition-all ${
+              repeatLabel
+                ? 'bg-teal-50 dark:bg-teal-950/70 border-teal-300 dark:border-teal-800 text-teal-800 dark:text-teal-300 hover:bg-teal-100'
+                : 'bg-stone-100 dark:bg-stone-800 border-stone-200 dark:border-stone-700 text-stone-500 hover:text-stone-800 dark:hover:text-stone-200'
+            }`}
+          >
+            <Repeat className="w-3 h-3" />
+            <span>{repeatLabel || 'Repeat'}</span>
+          </button>
         </div>
 
         {todayTasks.length > 1 && (
@@ -171,29 +263,39 @@ export const NowView: React.FC = () => {
       {/* Main Single-Focus Card */}
       <div className="bg-white dark:bg-stone-900 rounded-3xl p-6 shadow-sm border border-stone-200/80 dark:border-stone-800 flex-1 flex flex-col justify-between mb-4">
         <div>
-          {/* Header row: Title & Edit button */}
+          {/* Header row: Title & Action buttons */}
           <div className="flex items-start justify-between gap-3 mb-3">
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-stone-900 dark:text-stone-50 leading-tight">
               {activeTask.title}
             </h1>
-            <button
-              onClick={() => openEdit(activeTask)}
-              className="p-2 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-              aria-label="Edit task"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => openRepeatModal(activeTask)}
+                className="p-2 rounded-xl text-stone-400 hover:text-teal-700 dark:hover:text-teal-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                title="Repeat schedule"
+                aria-label="Repeat schedule"
+              >
+                <Repeat className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => openEdit(activeTask)}
+                className="p-2 rounded-xl text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                aria-label="Edit task"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Notes if available */}
           {activeTask.notes && (
-            <p className="text-sm text-stone-500 dark:text-stone-400 mb-5 leading-relaxed bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200/60 dark:border-stone-800">
+            <p className="text-sm text-stone-500 dark:text-stone-400 mb-4 leading-relaxed bg-stone-50 dark:bg-stone-900/60 p-3 rounded-xl border border-stone-200/60 dark:border-stone-800">
               {activeTask.notes}
             </p>
           )}
 
           {/* Subtask Progress Header */}
-          <div className="flex items-center justify-between text-xs font-medium text-stone-500 dark:text-stone-400 mb-2 mt-4">
+          <div className="flex items-center justify-between text-xs font-medium text-stone-500 dark:text-stone-400 mb-2 mt-3">
             <span className="font-display font-semibold text-stone-700 dark:text-stone-300">
               {totalSubtasks > 0 ? 'Playlist Steps' : 'Steps'}
             </span>
@@ -213,8 +315,8 @@ export const NowView: React.FC = () => {
           )}
 
           {/* Subtasks Checklist */}
-          <div className="space-y-2.5 max-h-[38vh] overflow-y-auto pr-1">
-            {activeTask.subtasks.map((sub, idx) => (
+          <div className="space-y-2.5 max-h-[36vh] overflow-y-auto pr-1">
+            {activeTask.subtasks.map((sub) => (
               <div
                 key={sub.id}
                 onClick={() => toggleSubtask(activeTask.id, sub.id)}
@@ -255,75 +357,109 @@ export const NowView: React.FC = () => {
             {activeTask.subtasks.length === 0 && (
               <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-center">
                 <p className="text-xs text-amber-900 dark:text-amber-300 mb-2">
-                  No subtasks generated yet.
+                  No subtasks broken down yet.
                 </p>
                 <button
-                  onClick={() => handleApplyAiTweak('Break this task down into bite-sized sequential subtasks')}
+                  onClick={handleApplyBiteSizedTweak}
                   disabled={aiLoading}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-semibold text-xs transition-colors shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs transition-colors shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  {aiLoading ? 'Thinking...' : 'Generate Magic Subtasks'}
+                  {aiLoading ? 'Thinking...' : 'Generate Bite-Sized Steps'}
                 </button>
               </div>
             )}
           </div>
 
-          {/* AI Quick Tweak / Chat-edit strip */}
-          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800">
-            {!showAiTweakInput ? (
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  onClick={() => setShowAiTweakInput(true)}
-                  className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-800 flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  AI Tweak Steps
-                </button>
+          {/* 3 AI TWEAKER BUTTONS SECTION */}
+          <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-500" />
+                AI Tweakers
+              </span>
+              {aiLoading && (
+                <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
+                  AI is updating...
+                </span>
+              )}
+            </div>
 
-                <div className="flex items-center gap-1.5">
+            {/* 3 AI Action Buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              {/* Button 1: Custom AI Tweak */}
+              <button
+                type="button"
+                onClick={() => setShowCustomPromptBox(!showCustomPromptBox)}
+                disabled={aiLoading}
+                className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                  showCustomPromptBox
+                    ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
+                    : 'bg-stone-50 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900'
+                }`}
+              >
+                <MessageSquareText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span className="truncate">AI Tweak</span>
+              </button>
+
+              {/* Button 2: Instant Bite-Sized */}
+              <button
+                type="button"
+                onClick={handleApplyBiteSizedTweak}
+                disabled={aiLoading}
+                className="py-2 px-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900 dark:hover:text-teal-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+                <span className="truncate">Bite-Sized</span>
+              </button>
+
+              {/* Button 3: Instant Faster */}
+              <button
+                type="button"
+                onClick={handleApplyFasterTweak}
+                disabled={aiLoading}
+                className="py-2 px-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="truncate">Faster</span>
+              </button>
+            </div>
+
+            {/* Custom AI Tweak Text Box (Toggled by Button 1) */}
+            {showCustomPromptBox && (
+              <div className="p-2.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800/80 space-y-2 animate-fadeIn">
+                <div className="flex items-center justify-between text-[11px] text-amber-900 dark:text-amber-300 font-semibold px-1">
+                  <span>Describe how you want AI to adjust this task:</span>
                   <button
-                    onClick={() => handleApplyAiTweak('Make steps easier and smaller (bite-size)')}
-                    disabled={aiLoading}
-                    className="text-[11px] font-medium px-2 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 hover:text-amber-800 transition-colors"
+                    type="button"
+                    onClick={() => setShowCustomPromptBox(false)}
+                    className="text-stone-400 hover:text-stone-700 text-xs"
                   >
-                    Bite-size
-                  </button>
-                  <button
-                    onClick={() => handleApplyAiTweak('Cut the time and make steps faster')}
-                    disabled={aiLoading}
-                    className="text-[11px] font-medium px-2 py-1 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-amber-100 dark:hover:bg-amber-950/60 hover:text-amber-800 transition-colors"
-                  >
-                    Faster
+                    ✕
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 bg-stone-50 dark:bg-stone-900 p-2 rounded-2xl border border-amber-300/60 dark:border-amber-800">
-                <input
-                  type="text"
-                  placeholder="e.g. split step 2, or make shorter..."
-                  value={quickAiPrompt}
-                  onChange={(e) => setQuickAiPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleApplyAiTweak(quickAiPrompt);
-                  }}
-                  className="flex-1 bg-transparent text-xs text-stone-800 dark:text-stone-100 focus:outline-none px-2"
-                />
-                <button
-                  onClick={() => handleApplyAiTweak(quickAiPrompt)}
-                  disabled={aiLoading || !quickAiPrompt.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1 transition-colors disabled:opacity-50"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  {aiLoading ? '...' : 'Tweak'}
-                </button>
-                <button
-                  onClick={() => setShowAiTweakInput(false)}
-                  className="text-xs text-stone-400 hover:text-stone-600 px-1"
-                >
-                  Cancel
-                </button>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. split step 2, add step for emailing Sarah, make 10m..."
+                    value={quickAiPrompt}
+                    onChange={(e) => setQuickAiPrompt(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleApplyCustomAiTweak(quickAiPrompt);
+                    }}
+                    autoFocus
+                    className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleApplyCustomAiTweak(quickAiPrompt)}
+                    disabled={aiLoading || !quickAiPrompt.trim()}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50"
+                  >
+                    <Wand2 className="w-3.5 h-3.5" />
+                    <span>Apply</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -354,7 +490,7 @@ export const NowView: React.FC = () => {
         </div>
       </div>
 
-      {/* Up Next Peek Strip (Strictly avoided as a long list, just a calm teaser with count) */}
+      {/* Up Next Peek Strip */}
       {upNextTasks.length > 0 && (
         <div className="bg-stone-50/90 dark:bg-stone-900/90 border border-stone-200/80 dark:border-stone-800 rounded-2xl overflow-hidden transition-all shadow-sm">
           <button
@@ -379,32 +515,32 @@ export const NowView: React.FC = () => {
 
           {isUpNextExpanded && (
             <div className="px-4 pb-3 pt-1 space-y-2 border-t border-stone-100 dark:border-stone-800/60">
-              {upNextTasks.map((task) => (
-                <div
-                  key={task.id}
-                  onClick={() => {
-                    setActiveTaskId(task.id);
-                    setIsUpNextExpanded(false);
-                  }}
-                  className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-stone-200/60 dark:border-stone-700 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{
-                        backgroundColor:
-                          CATEGORIES[task.category]?.dotColor || '#78716c',
-                      }}
-                    />
-                    <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
-                      {task.title}
+              {upNextTasks.map((task) => {
+                const catMeta = categories[task.category] || DEFAULT_CATEGORIES[task.category] || DEFAULT_CATEGORIES.other;
+                return (
+                  <div
+                    key={task.id}
+                    onClick={() => {
+                      setActiveTaskId(task.id);
+                      setIsUpNextExpanded(false);
+                    }}
+                    className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-stone-200/60 dark:border-stone-700 cursor-pointer transition-all group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: catMeta.dotColor }}
+                      />
+                      <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
+                        {task.title}
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-mono text-stone-500 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                      Switch ➔
                     </span>
                   </div>
-                  <span className="text-[11px] font-mono text-stone-500 group-hover:text-teal-700 dark:group-hover:text-teal-300">
-                    Switch ➔
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 {
-  "name": "Anchor — AI ADHD Planner",
-  "short_name": "Anchor",
-  "description": "An executive function companion and ADHD planner featuring single-task focus, AI magic subtasks, smart playlist timers, and calendar view.",
+  "name": "Remember — Focus & Task Companion",
+  "short_name": "Remember",
+  "description": "An executive function companion and focus planner featuring single-task clarity, AI micro-breakdowns, smart repeating schedules, and focus timers.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",

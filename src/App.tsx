@@ -13,11 +13,19 @@ import { LibraryView } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
 import { CaptureModal } from './components/CaptureModal';
 import { TaskEditModal } from './components/TaskEditModal';
+import { RepeatModal } from './components/RepeatModal';
+import { AddCategoryModal } from './components/AddCategoryModal';
 import { FocusTimerOverlay } from './components/FocusTimerOverlay';
 import { WifiOff } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
-  const { currentTab, focusTask, stopFocus } = useTaskContext();
+  const {
+    currentTab,
+    focusTask,
+    stopFocus,
+    isAddCategoryOpen,
+    closeAddCategoryModal,
+  } = useTaskContext();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   useEffect(() => {
@@ -62,6 +70,15 @@ const MainLayout: React.FC = () => {
 
       {/* Task Edit / Natural Language AI Modal */}
       <TaskEditModal />
+
+      {/* Repeat Schedule Modal */}
+      <RepeatModal />
+
+      {/* Add Custom Category Modal */}
+      <AddCategoryModal
+        isOpen={isAddCategoryOpen}
+        onClose={closeAddCategoryModal}
+      />
 
       {/* Fullscreen Playlist Focus Timer */}
       {focusTask && <FocusTimerOverlay task={focusTask} onClose={stopFocus} />}
