@@ -16,12 +16,16 @@ import {
   Plus,
   Trash2,
   Cloud,
-  CloudCheck,
   RefreshCw,
   LogIn,
   LogOut,
   KeyRound,
   CalendarClock,
+  AlertCircle,
+  ExternalLink,
+  Copy,
+  X,
+  Globe,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -29,6 +33,8 @@ export const SettingsView: React.FC = () => {
     settings,
     categories,
     user,
+    authError,
+    clearAuthError,
     isCloudSyncing,
     cloudLastSynced,
     signInWithGoogle,
@@ -44,7 +50,25 @@ export const SettingsView: React.FC = () => {
 
   const [contextInput, setContextInput] = useState(settings.context);
   const [copied, setCopied] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const isIframe = typeof window !== 'undefined' && window.self !== window.top;
+
+  const handleCopyDomain = () => {
+    if (currentHostname) {
+      navigator.clipboard.writeText(currentHostname);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 2500);
+    }
+  };
+
+  const handleOpenInNewWindow = () => {
+    if (typeof window !== 'undefined') {
+      window.open(window.location.href, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   const handleSaveContext = () => {
     updateSettings({ context: contextInput });
@@ -340,9 +364,9 @@ export const SettingsView: React.FC = () => {
               <Cloud className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-display font-bold text-sm">Cloud Sync & Persistence</h2>
+              <h2 className="font-display font-bold text-sm">Cloud Sync & Google Auth</h2>
               <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Backed by Cloud Firestore database
+                Backed by Cloud Firestore database with real-time multi-tab & device sync
               </p>
             </div>
           </div>
@@ -364,7 +388,7 @@ export const SettingsView: React.FC = () => {
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
-                {user ? `Connected as ${user.displayName || user.email}` : 'Connected (Anonymous Device Sync)'}
+                {user ? `Connected as ${user.displayName || user.email}` : 'Connected (Anonymous Device Cloud Sync)'}
               </span>
             </div>
             <span className="text-[10px] text-stone-400 font-mono">
@@ -372,7 +396,7 @@ export const SettingsView: React.FC = () => {
             </span>
           </div>
 
-          <div className="pt-1 flex items-center justify-between">
+          <div className="pt-1 flex flex-wrap items-center gap-2 justify-between">
             {user ? (
               <button
                 onClick={logOut}
@@ -382,16 +406,89 @@ export const SettingsView: React.FC = () => {
                 Sign Out
               </button>
             ) : (
-              <button
-                onClick={signInWithGoogle}
-                className="py-2 px-3.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all"
-              >
-                <LogIn className="w-3.5 h-3.5 text-amber-300" />
-                Sign in with Google (Cross-Device Sync)
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={signInWithGoogle}
+                  className="py-2 px-3.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                >
+                  <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                  Sign in with Google (Cross-Device Sync)
+                </button>
+
+                {isIframe && (
+                  <button
+                    onClick={handleOpenInNewWindow}
+                    className="py-2 px-3 rounded-xl bg-stone-200 dark:bg-stone-700 hover:bg-stone-300 dark:hover:bg-stone-600 text-stone-800 dark:text-stone-200 text-xs font-medium flex items-center gap-1.5 transition-all"
+                    title="Open app in a new browser tab to allow full OAuth popups"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open in New Window
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
+
+        {/* Auth Error Banner & Deployed Domain Authorization Guide */}
+        {authError && (
+          <div className="p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-700 text-amber-950 dark:text-amber-100 space-y-3 animate-fadeIn">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <h3 className="font-bold text-xs">
+                  {authError.code === 'auth/unauthorized-domain'
+                    ? 'Deployed Domain Needs Firebase Authorization'
+                    : authError.code === 'auth/popup-blocked' || authError.code === 'auth/operation-not-supported-in-this-environment'
+                    ? 'Popup Blocked (Open App in New Tab)'
+                    : 'Sign-In Notice'}
+                </h3>
+              </div>
+              <button
+                onClick={clearAuthError}
+                className="text-amber-600 dark:text-amber-400 hover:text-amber-800 p-0.5 rounded transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+              {authError.message}
+            </p>
+
+            {authError.code === 'auth/unauthorized-domain' && currentHostname && (
+              <div className="space-y-2.5 pt-1">
+                <div className="flex items-center gap-2 p-2 rounded-xl bg-white/80 dark:bg-stone-900/80 border border-amber-200 dark:border-amber-800">
+                  <Globe className="w-3.5 h-3.5 text-stone-500 shrink-0" />
+                  <span className="font-mono text-xs text-stone-800 dark:text-stone-200 truncate flex-1 select-all">
+                    {currentHostname}
+                  </span>
+                  <button
+                    onClick={handleCopyDomain}
+                    className="px-2.5 py-1 rounded-lg bg-teal-800 hover:bg-teal-900 text-white text-[11px] font-semibold flex items-center gap-1 shrink-0 transition-colors"
+                  >
+                    {copiedDomain ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                    {copiedDomain ? 'Copied!' : 'Copy Domain'}
+                  </button>
+                </div>
+
+                <div className="text-[11px] text-amber-900 dark:text-amber-200 space-y-1 pl-1">
+                  <p className="font-semibold">How to enable Google Sign-In on your deployed app:</p>
+                  <ol className="list-decimal list-inside space-y-0.5 opacity-90 pl-1">
+                    <li>Open <strong>Firebase Console</strong> and select your project.</li>
+                    <li>Go to <strong>Authentication</strong> → <strong>Settings</strong> tab → scroll to <strong>Authorized domains</strong>.</li>
+                    <li>Click <strong>Add domain</strong>, paste <code className="font-mono bg-amber-100 dark:bg-amber-900/80 px-1 py-0.5 rounded">{currentHostname}</code>, and save.</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+
+            <div className="text-[11px] text-amber-800 dark:text-amber-300/90 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+              ✨ <em>Note: Your tasks and notes are already saved to Cloud Firestore via Anonymous Device Sync & saved locally, so you will never lose your data!</em>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* AI Engine & Gemini API Keys Info */}

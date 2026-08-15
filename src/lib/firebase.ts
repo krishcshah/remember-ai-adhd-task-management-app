@@ -34,6 +34,7 @@ export const db = initializeFirestore(app, {
 
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // Device ID for anonymous/guest cloud syncing
 const DEVICE_ID_KEY = 'remember_device_cloud_id';

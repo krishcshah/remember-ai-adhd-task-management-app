@@ -48,8 +48,10 @@ interface TaskContextType {
   user: User | null;
   isCloudSyncing: boolean;
   cloudLastSynced: Date | null;
+  authError: { code: string; message: string; domain?: string } | null;
   signInWithGoogle: () => Promise<void>;
   logOut: () => Promise<void>;
+  clearAuthError: () => void;
   manualCloudSync: () => Promise<void>;
 
   // Navigation & Overlays
@@ -130,6 +132,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   
   const [user, setUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState<{ code: string; message: string; domain?: string } | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [cloudLastSynced, setCloudLastSynced] = useState<Date | null>(null);
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -250,15 +253,49 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [settings, user]);
 
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
+
   const signInWithGoogle = useCallback(async () => {
+    setAuthError(null);
     try {
       await signInWithPopup(auth, googleProvider);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Google Sign-In failed:', err);
+      const code = err?.code || 'auth/unknown';
+      const domain = typeof window !== 'undefined' ? window.location.hostname : '';
+      
+      if (code === 'auth/unauthorized-domain') {
+        setAuthError({
+          code,
+          domain,
+          message: `The domain "${domain}" is not yet authorized in your Firebase Project. Add it to Firebase Console > Authentication > Settings > Authorized domains.`,
+        });
+      } else if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+        setAuthError({
+          code,
+          domain,
+          message: `The sign-in popup was blocked by your browser or iframe security policy. Please click "Open in New Tab" to sign in directly.`,
+        });
+      } else if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        setAuthError({
+          code,
+          domain,
+          message: `Sign-in was cancelled before completion.`,
+        });
+      } else {
+        setAuthError({
+          code,
+          domain,
+          message: err?.message || 'Failed to complete Google Sign-In. Please check your network and Firebase configuration.',
+        });
+      }
     }
   }, []);
 
   const logOut = useCallback(async () => {
+    setAuthError(null);
     try {
       await signOut(auth);
     } catch (err) {
@@ -666,10 +703,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         aiError,
         theme: settings.theme,
         user,
+        authError,
         isCloudSyncing,
         cloudLastSynced,
         signInWithGoogle,
         logOut,
+        clearAuthError,
         manualCloudSync,
         setCurrentTab,
         openCapture,
