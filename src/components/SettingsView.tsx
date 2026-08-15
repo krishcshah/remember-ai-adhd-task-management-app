@@ -76,7 +76,8 @@ export const SettingsView: React.FC = () => {
     setIsTestingAi(true);
     setAiTestResult(null);
     try {
-      const result = await testAiConnection();
+      const keyToUse = customKeyInput.trim() || getCustomClientApiKey();
+      const result = await testAiConnection(keyToUse || undefined);
       setAiTestResult(result);
     } catch (e: any) {
       setAiTestResult({ ok: false, error: e?.message || 'Connection failed' });

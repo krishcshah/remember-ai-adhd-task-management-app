@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/ai/:action",
+      "destination": "/api/ai/[action]"
+    },
+    {
+      "source": "/api/ai",
+      "destination": "/api/ai/[action]"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "/api/ai/[action]"
+    }
+  ]
+}
