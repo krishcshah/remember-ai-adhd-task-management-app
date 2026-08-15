@@ -15,12 +15,24 @@ import {
   Tag,
   Plus,
   Trash2,
+  Cloud,
+  CloudCheck,
+  RefreshCw,
+  LogIn,
+  LogOut,
+  KeyRound,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
   const {
     settings,
     categories,
+    user,
+    isCloudSyncing,
+    cloudLastSynced,
+    signInWithGoogle,
+    logOut,
+    manualCloudSync,
     openAddCategoryModal,
     deleteCustomCategory,
     updateSettings,
@@ -288,15 +300,82 @@ export const SettingsView: React.FC = () => {
         </div>
       </div>
 
-      {/* AI & Executive Engine Status */}
-      <div className="bg-stone-50 dark:bg-stone-900/60 p-4 rounded-3xl border border-stone-200/80 dark:border-stone-800 flex items-center gap-3">
-        <ShieldCheck className="w-6 h-6 text-teal-700 dark:text-teal-400 shrink-0" />
-        <div className="flex-1">
-          <p className="text-xs font-bold text-stone-800 dark:text-stone-200">
-            Gemini 2.5 AI & Offline Heuristics Active
+      {/* Cloud Firestore & Google Sync */}
+      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+              <Cloud className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-sm">Cloud Sync & Persistence</h2>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                Backed by Cloud Firestore database
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={manualCloudSync}
+              disabled={isCloudSyncing}
+              className="p-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1 transition-all disabled:opacity-50"
+              title="Force Sync to Cloud"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin text-teal-600' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                {user ? `Connected as ${user.displayName || user.email}` : 'Connected (Anonymous Device Sync)'}
+              </span>
+            </div>
+            <span className="text-[10px] text-stone-400 font-mono">
+              {isCloudSyncing ? 'Syncing...' : cloudLastSynced ? `Synced at ${cloudLastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Live Firestore'}
+            </span>
+          </div>
+
+          <div className="pt-1 flex items-center justify-between">
+            {user ? (
+              <button
+                onClick={logOut}
+                className="py-1.5 px-3 rounded-xl bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center gap-1.5 hover:bg-rose-100 hover:text-rose-700 dark:hover:bg-rose-950/60 dark:hover:text-rose-300 transition-colors"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                Sign Out
+              </button>
+            ) : (
+              <button
+                onClick={signInWithGoogle}
+                className="py-2 px-3.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-white text-xs font-semibold flex items-center gap-1.5 shadow-xs transition-all"
+              >
+                <LogIn className="w-3.5 h-3.5 text-amber-300" />
+                Sign in with Google (Cross-Device Sync)
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* AI Engine & Gemini API Keys Info */}
+      <div className="bg-stone-50 dark:bg-stone-900/60 p-4 rounded-3xl border border-stone-200/80 dark:border-stone-800 flex items-start gap-3">
+        <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+          <KeyRound className="w-4 h-4" />
+        </div>
+        <div className="flex-1 space-y-1">
+          <p className="text-xs font-bold text-stone-800 dark:text-stone-200 flex items-center justify-between">
+            <span>Gemini 3.7 Flash AI Model & Secret Keys</span>
+            <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-mono">
+              gemini-3.7-flash
+            </span>
           </p>
-          <p className="text-[11px] text-stone-500">
-            Powered by server-side Gemini AI with instant rule-based offline fallbacks.
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+            All AI task decomposition, natural language tweaking, and brain-dump sorting run through Google's latest <strong>gemini-3.7-flash</strong> model. Your Gemini API key is securely managed on the cloud server. You can configure or update your key anytime in the <strong>Secrets</strong> panel of AI Studio.
           </p>
         </div>
       </div>

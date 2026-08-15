@@ -5,7 +5,8 @@
 [![React](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38bdf8.svg)](https://tailwindcss.com/)
-[![Gemini AI](https://img.shields.io/badge/Gemini-2.5_Flash-8e75ff.svg)](https://ai.google.dev/)
+[![Gemini AI](https://img.shields.io/badge/Gemini-3.7_Flash-8e75ff.svg)](https://ai.google.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-Firestore-orange.svg)](https://firebase.google.com/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 
 **Remember** acts as an external prefrontal cortex for neurodivergent minds, busy professionals, and students. Instead of presenting overwhelming task matrices and endless to-do lists, Remember isolates **one task at a time**, breaks daunting goals into bite-sized micro-steps, and guides you through an immersive, distraction-free playlist timer with ambient soundscapes.
@@ -19,8 +20,8 @@
 - **Micro-Step Progression:** Shows step 1 of N so you only focus on the immediate next physical action.
 - **Queue Controls:** Reorder, skip to next, or complete tasks with celebratory confetti and sound effects.
 
-### 🪄 Gemini 2.5 AI Magic Breakdown
-- **Instant Micro-Decomposition:** Transforms vague, daunting tasks (e.g. *"File taxes"* or *"Clean room"*) into 3–4 tiny, low-friction steps starting with active imperative verbs.
+### 🪄 Gemini 3.7 Flash AI Magic Breakdown
+- **Instant Micro-Decomposition:** Powered by Google's flagship `gemini-3.7-flash` model to transform vague, daunting tasks into 3–4 tiny, low-friction steps starting with active imperative verbs.
 - **ADHD-Friendly Granularity:** Defaults to Level 1 (Bite-sized) to bypass task-initiation freeze.
 - **3-Button Quick Tweaks:**
   - 🥪 **Bite-sized:** Slices complex steps into even smaller micro-actions.

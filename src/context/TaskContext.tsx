@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Task, TaskCategory, Settings, ActiveTab, CategoryMeta, RepeatType, COLOR_PALETTES } from '../types';
 import {
   loadTasksFromStorage,
@@ -15,6 +15,15 @@ import {
   isTaskScheduledForDate,
 } from '../utils/storage';
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
+import {
+  syncTasksToCloud,
+  syncSettingsToCloud,
+  syncCategoriesToCloud,
+  fetchAllTasksFromCloud,
+  auth,
+  googleProvider,
+} from '../lib/firebase';
+import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 
 interface TaskContextType {
   tasks: Task[];
@@ -34,6 +43,14 @@ interface TaskContextType {
   aiError: string | null;
   theme: 'light' | 'dark' | 'system';
   
+  // Cloud Auth & Sync Status
+  user: User | null;
+  isCloudSyncing: boolean;
+  cloudLastSynced: Date | null;
+  signInWithGoogle: () => Promise<void>;
+  logOut: () => Promise<void>;
+  manualCloudSync: () => Promise<void>;
+
   // Navigation & Overlays
   setCurrentTab: (tab: ActiveTab) => void;
   openCapture: (tab?: 'quick' | 'braindump') => void;
@@ -95,6 +112,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [activeTaskId, setActiveTaskIdState] = useState<string | null>(() => loadActiveTaskId());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   
+  const [user, setUser] = useState<User | null>(null);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [cloudLastSynced, setCloudLastSynced] = useState<Date | null>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const [isCaptureOpen, setIsCaptureOpen] = useState(false);
   const [captureInitialTab, setCaptureInitialTab] = useState<'quick' | 'braindump'>('quick');
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -106,19 +128,65 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  // Sync tasks to local storage
+  // Monitor Firebase Auth State
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      if (currentUser) {
+        // Fetch cloud data and merge if available
+        setIsCloudSyncing(true);
+        try {
+          const cloudTasks = await fetchAllTasksFromCloud(currentUser.uid);
+          if (cloudTasks.length > 0) {
+            setTasks(cloudTasks);
+          } else {
+            // First time cloud user: sync existing local tasks up to their new cloud account
+            await syncTasksToCloud(currentUser.uid, tasks);
+          }
+          setCloudLastSynced(new Date());
+        } catch (e) {
+          console.warn('Initial cloud fetch warning:', e);
+        } finally {
+          setIsCloudSyncing(false);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Sync tasks to local storage & cloud database
   useEffect(() => {
     saveTasksToStorage(tasks);
-  }, [tasks]);
 
-  // Sync categories to local storage
+    // Debounced sync to Firestore
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    syncTimeoutRef.current = setTimeout(async () => {
+      setIsCloudSyncing(true);
+      try {
+        await syncTasksToCloud(user ? user.uid : null, tasks);
+        setCloudLastSynced(new Date());
+      } catch (err) {
+        console.warn('Cloud sync debounce error:', err);
+      } finally {
+        setIsCloudSyncing(false);
+      }
+    }, 1200);
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current);
+    };
+  }, [tasks, user]);
+
+  // Sync categories to local storage & cloud
   useEffect(() => {
     saveCustomCategories(categories);
-  }, [categories]);
+    syncCategoriesToCloud(user ? user.uid : null, categories);
+  }, [categories, user]);
 
-  // Sync settings to local storage & DOM theme
+  // Sync settings to local storage & cloud
   useEffect(() => {
     saveSettingsToStorage(settings);
+    syncSettingsToCloud(user ? user.uid : null, settings);
     
     // Apply theme
     const root = document.documentElement;
@@ -145,7 +213,35 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mediaQuery.addEventListener('change', listener);
       return () => mediaQuery.removeEventListener('change', listener);
     }
-  }, [settings]);
+  }, [settings, user]);
+
+  const signInWithGoogle = useCallback(async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (err) {
+      console.error('Google Sign-In failed:', err);
+    }
+  }, []);
+
+  const logOut = useCallback(async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Sign-Out failed:', err);
+    }
+  }, []);
+
+  const manualCloudSync = useCallback(async () => {
+    setIsCloudSyncing(true);
+    try {
+      await syncTasksToCloud(user ? user.uid : null, tasks);
+      await syncSettingsToCloud(user ? user.uid : null, settings);
+      await syncCategoriesToCloud(user ? user.uid : null, categories);
+      setCloudLastSynced(new Date());
+    } finally {
+      setIsCloudSyncing(false);
+    }
+  }, [user, tasks, settings, categories]);
 
   const setActiveTaskId = useCallback((id: string | null) => {
     setActiveTaskIdState(id);
@@ -529,6 +625,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         aiLoading,
         aiError,
         theme: settings.theme,
+        user,
+        isCloudSyncing,
+        cloudLastSynced,
+        signInWithGoogle,
+        logOut,
+        manualCloudSync,
         setCurrentTab,
         openCapture,
         closeCapture,
