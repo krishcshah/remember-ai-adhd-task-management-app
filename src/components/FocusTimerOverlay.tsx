@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { Subtask, Task } from '../types';
 import {
@@ -114,19 +115,45 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
   if (isCompleted) {
     const minutesFocused = Math.max(1, Math.round(totalFocusedSeconds / 60));
     return (
-      <div className="fixed inset-0 z-50 bg-[#162E27] text-stone-100 flex flex-col items-center justify-center p-6 text-center animate-fadeIn">
-        <div className="w-24 h-24 rounded-full bg-teal-900/80 border-2 border-amber-400 flex items-center justify-center text-amber-400 mb-6 shadow-2xl">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        transition={{ duration: 0.3 }}
+        className="fixed inset-0 z-50 bg-[#162E27] text-stone-100 flex flex-col items-center justify-center p-6 text-center"
+      >
+        <motion.div
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', damping: 15, stiffness: 200 }}
+          className="w-24 h-24 rounded-full bg-teal-900/80 border-2 border-amber-400 flex items-center justify-center text-amber-400 mb-6 shadow-2xl"
+        >
           <Sparkles className="w-12 h-12" />
-        </div>
+        </motion.div>
 
-        <h1 className="font-display text-3xl sm:text-4xl font-extrabold text-stone-50 mb-2">
+        <motion.h1
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="font-display text-3xl sm:text-4xl font-extrabold text-stone-50 mb-2"
+        >
           Focus Complete!
-        </h1>
-        <p className="text-teal-200/80 text-sm max-w-sm mb-6 leading-relaxed">
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-teal-200/80 text-sm max-w-sm mb-6 leading-relaxed"
+        >
           You worked through all steps for <span className="font-semibold text-white">"{task.title}"</span>.
-        </p>
+        </motion.p>
 
-        <div className="bg-teal-950/60 border border-teal-800/60 rounded-2xl p-4 mb-8 flex items-center gap-6 justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.25 }}
+          className="bg-teal-950/60 border border-teal-800/60 rounded-2xl p-4 mb-8 flex items-center gap-6 justify-center"
+        >
           <div className="text-center">
             <span className="text-xs text-teal-400 font-medium uppercase tracking-wider block">
               Time Focused
@@ -144,21 +171,29 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
               {playlist.length} / {playlist.length}
             </span>
           </div>
-        </div>
+        </motion.div>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
           onClick={onClose}
-          className="w-full max-w-xs py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-teal-950 font-display font-bold text-base shadow-lg transition-transform active:scale-98 flex items-center justify-center gap-2"
+          className="w-full max-w-xs py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-teal-950 font-display font-bold text-base shadow-lg cursor-pointer flex items-center justify-center gap-2"
         >
           <span>Return to Plan</span>
           <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#162E27] text-stone-100 flex flex-col justify-between p-6 select-none overflow-hidden">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.25 }}
+      className="fixed inset-0 z-50 bg-[#162E27] text-stone-100 flex flex-col justify-between p-6 select-none overflow-hidden"
+    >
       {/* Top Header: Step Tracker & Close */}
       <div className="flex items-center justify-between safe-top">
         <div className="flex items-center gap-2">
@@ -168,13 +203,15 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
           </span>
         </div>
 
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1, rotate: 90 }}
+          whileTap={{ scale: 0.9 }}
           onClick={onClose}
           aria-label="Exit focus mode"
-          className="p-2.5 rounded-full bg-teal-950/60 border border-teal-800 text-stone-300 hover:text-white hover:bg-teal-900 transition-colors"
+          className="p-2.5 rounded-full bg-teal-950/60 border border-teal-800 text-stone-300 hover:text-white hover:bg-teal-900 transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
-        </button>
+        </motion.button>
       </div>
 
       {/* Center Stage: Circular Progress Ring & Current Step */}
@@ -215,7 +252,7 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
           {/* Center Digits & Status */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span
-              className={`font-mono text-5xl sm:text-6xl font-extrabold tracking-tight timer-digits ${
+              className={`font-mono text-5xl sm:text-6xl font-extrabold tracking-tight timer-digits transition-colors ${
                 isOvertime ? 'text-amber-400' : 'text-stone-50'
               }`}
             >
@@ -228,11 +265,20 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
         </div>
 
         {/* Current Active Step Heading */}
-        <div className="mt-2 px-4 max-w-sm">
-          <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-100 leading-snug">
-            {currentStep.title}
-          </h2>
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentStep.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="mt-2 px-4 max-w-sm"
+          >
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-stone-100 leading-snug">
+              {currentStep.title}
+            </h2>
+          </motion.div>
+        </AnimatePresence>
 
         {/* Next step preview if any */}
         {currentStepIndex + 1 < playlist.length && (
@@ -242,22 +288,26 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
         )}
       </div>
 
-      {/* Bottom Controls Bar (Big touch targets >= 44px) */}
+      {/* Bottom Controls Bar */}
       <div className="w-full max-w-md mx-auto space-y-4 safe-bottom">
         <div className="flex items-center justify-center gap-4">
           {/* +5 Min Buffer Button */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.94 }}
             onClick={handleAddFiveMinutes}
-            className="flex-1 py-3.5 px-4 rounded-2xl bg-teal-950/80 hover:bg-teal-900 border border-teal-800/80 text-teal-200 font-mono text-sm font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-95"
+            className="flex-1 py-3.5 px-4 rounded-2xl bg-teal-950/80 hover:bg-teal-900 border border-teal-800/80 text-teal-200 font-mono text-sm font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>5 min</span>
-          </button>
+          </motion.button>
 
           {/* Pause / Resume Button */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
             onClick={() => setIsRunning(!isRunning)}
-            className="w-16 h-16 rounded-full bg-teal-800 hover:bg-teal-700 text-stone-100 flex items-center justify-center shadow-lg border border-teal-600/40 transition-transform active:scale-95"
+            className="w-16 h-16 rounded-full bg-teal-800 hover:bg-teal-700 text-stone-100 flex items-center justify-center shadow-lg border border-teal-600/40 transition-colors cursor-pointer"
             aria-label={isRunning ? 'Pause timer' : 'Resume timer'}
           >
             {isRunning ? (
@@ -265,29 +315,33 @@ export const FocusTimerOverlay: React.FC<{ task: Task; onClose: () => void }> = 
             ) : (
               <Play className="w-6 h-6 fill-current ml-0.5" />
             )}
-          </button>
+          </motion.button>
 
           {/* Skip Step Button */}
-          <button
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.94 }}
             onClick={() => advanceToNextStep(false)}
-            className="flex-1 py-3.5 px-4 rounded-2xl bg-teal-950/80 hover:bg-teal-900 border border-teal-800/80 text-stone-300 font-medium text-sm flex items-center justify-center gap-1.5 transition-all active:scale-95"
+            className="flex-1 py-3.5 px-4 rounded-2xl bg-teal-950/80 hover:bg-teal-900 border border-teal-800/80 text-stone-300 font-medium text-sm flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <span>Skip</span>
             <SkipForward className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
 
         {/* Primary Step Done Button */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
           onClick={() => advanceToNextStep(true)}
-          className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 active:scale-[0.99] text-teal-950 font-display font-bold text-base flex items-center justify-center gap-2.5 shadow-xl transition-all"
+          className="w-full py-4 px-6 rounded-2xl bg-amber-500 hover:bg-amber-400 text-teal-950 font-display font-bold text-base flex items-center justify-center gap-2.5 shadow-xl transition-colors cursor-pointer"
         >
           <Check className="w-5 h-5 stroke-[3px]" />
           <span>
             {currentStepIndex + 1 === playlist.length ? 'Finish Task' : 'Done • Next Step'}
           </span>
-        </button>
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 };

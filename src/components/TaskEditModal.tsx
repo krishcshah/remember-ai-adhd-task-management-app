@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, TaskCategory, Subtask, RepeatType, CategoryMeta } from '../types';
 import {
@@ -215,33 +216,56 @@ export const TaskEditModal: React.FC = () => {
   const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
-    <div className="fixed inset-0 z-40 bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200/80 dark:border-stone-800 animate-slideUp overflow-hidden">
-        {/* Header */}
-        <div className="p-4 border-b border-stone-200/70 dark:border-stone-800 flex items-center justify-between">
-          <h2 className="font-display font-bold text-base text-stone-900 dark:text-stone-100">
-            Edit Task
-          </h2>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                closeEdit();
-                startFocus(editingTask);
-              }}
-              className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-xs font-semibold flex items-center gap-1 hover:bg-teal-100"
-            >
-              <Play className="w-3.5 h-3.5 fill-current" />
-              Focus
-            </button>
-            <button
-              onClick={closeEdit}
-              className="p-1.5 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+    <AnimatePresence>
+      {isEditOpen && editingTask && (
+        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={closeEdit}
+            className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs"
+          />
+
+          {/* Modal Container */}
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.97 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+            className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden relative z-10"
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-stone-200/70 dark:border-stone-800 flex items-center justify-between">
+              <h2 className="font-display font-bold text-base text-stone-900 dark:text-stone-100">
+                Edit Task
+              </h2>
+              <div className="flex items-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  type="button"
+                  onClick={() => {
+                    closeEdit();
+                    startFocus(editingTask);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-xs font-semibold flex items-center gap-1 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-colors cursor-pointer"
+                >
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Focus
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.1, rotate: 90 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={closeEdit}
+                  className="p-1.5 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 cursor-pointer transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </motion.button>
+              </div>
+            </div>
 
         {/* Content */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
@@ -550,36 +574,42 @@ export const TaskEditModal: React.FC = () => {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-between bg-stone-50/50 dark:bg-stone-900/50">
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-1"
-          >
-            <Trash2 className="w-4 h-4" />
-            Delete
-          </button>
+            {/* Footer */}
+            <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-between bg-stone-50/50 dark:bg-stone-900/50">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                type="button"
+                onClick={handleDelete}
+                className="text-xs font-semibold text-rose-600 hover:text-rose-700 dark:text-rose-400 flex items-center gap-1 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete
+              </motion.button>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={closeEdit}
-              className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-5 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-bold text-xs shadow-sm flex items-center gap-1.5"
-            >
-              <Check className="w-4 h-4" />
-              Save Changes
-            </button>
-          </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  className="px-4 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  type="button"
+                  onClick={handleSave}
+                  className="px-5 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Changes
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
 import {
@@ -532,16 +533,20 @@ export const SettingsView: React.FC = () => {
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={handleExport}
             className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
             title="Download a complete JSON backup of your tasks and settings"
           >
             <Download className="w-3.5 h-3.5" />
             Export JSON
-          </button>
+          </motion.button>
 
-          <label 
+          <motion.label 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
             title="Upload and restore a previous JSON backup"
           >
@@ -553,11 +558,13 @@ export const SettingsView: React.FC = () => {
               onChange={handleImport}
               className="hidden"
             />
-          </label>
+          </motion.label>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => {
-              if (window.confirm('Reset all tasks back to the starter demo tasks and default settings?')) {
+              if (window.confirm('Reset all tasks back to the starter demo tasks and restore default settings?')) {
                 resetAllData();
                 setImportStatus('Starter template restored.');
                 setTimeout(() => setImportStatus(null), 2500);
@@ -568,11 +575,13 @@ export const SettingsView: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset Defaults
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
             onClick={() => {
-              if (window.confirm('Are you sure you want to clear all tasks? This will wipe your schedule, library, and cloud database clean (0 tasks).')) {
+              if (window.confirm('Are you sure you want to clear all tasks? This will wipe your schedule, library, and cloud database completely clean.')) {
                 clearAllData();
                 setImportStatus('All tasks cleared.');
                 setTimeout(() => setImportStatus(null), 2500);
@@ -583,7 +592,7 @@ export const SettingsView: React.FC = () => {
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear All Data
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>

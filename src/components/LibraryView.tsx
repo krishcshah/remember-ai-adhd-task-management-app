@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, TaskCategory, Task, CategoryMeta } from '../types';
 import {
@@ -70,18 +71,22 @@ export const LibraryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={openAddCategoryModal}
-            className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1 transition-colors"
+            className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" /> Category
-          </button>
-          <button
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => openCapture('quick')}
-            className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors"
+            className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Add Task
-          </button>
+          </motion.button>
         </div>
       </div>
 
@@ -98,7 +103,7 @@ export const LibraryView: React.FC = () => {
         {searchQuery && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 hover:text-stone-600"
+            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs text-stone-400 hover:text-stone-600 cursor-pointer"
           >
             Clear
           </button>
@@ -107,55 +112,60 @@ export const LibraryView: React.FC = () => {
 
       {/* Filter Horizontal Scroll Chips */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setFilterTab('all')}
-          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors cursor-pointer ${
             filterTab === 'all'
               ? 'bg-teal-800 text-white font-semibold'
               : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
           }`}
         >
           All ({tasks.length})
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setFilterTab('today')}
-          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors cursor-pointer ${
             filterTab === 'today'
               ? 'bg-teal-800 text-white font-semibold'
               : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
           }`}
         >
           Today
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setFilterTab('unscheduled')}
-          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors cursor-pointer ${
             filterTab === 'unscheduled'
               ? 'bg-amber-600 text-white font-semibold'
               : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
           }`}
         >
           Inbox ({tasks.filter((t) => !t.scheduledDate && !t.repeatDaily && t.status === 'todo').length})
-        </button>
+        </motion.button>
 
-        <button
+        <motion.button
+          whileTap={{ scale: 0.95 }}
           onClick={() => setFilterTab('completed')}
-          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors ${
+          className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors cursor-pointer ${
             filterTab === 'completed'
               ? 'bg-stone-800 text-white font-semibold'
               : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
           }`}
         >
           Completed
-        </button>
+        </motion.button>
 
         {Object.values(allCategories).map((cat) => (
-          <button
+          <motion.button
             key={cat.id}
+            whileTap={{ scale: 0.95 }}
             onClick={() => setFilterTab(cat.id)}
-            className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
               filterTab === cat.id
                 ? 'bg-stone-800 dark:bg-stone-700 text-white font-semibold'
                 : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
@@ -163,180 +173,202 @@ export const LibraryView: React.FC = () => {
           >
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.dotColor }} />
             {cat.label}
-          </button>
+          </motion.button>
         ))}
       </div>
 
       {/* Task List */}
       <div className="space-y-3 pt-1">
-        {filteredTasks.length > 0 ? (
-          filteredTasks.map((task) => {
-            const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
-            const isDone = task.status === 'done';
-            const isToday = isTaskScheduledForDate(task, todayStr);
+        <AnimatePresence mode="popLayout">
+          {filteredTasks.length > 0 ? (
+            filteredTasks.map((task) => {
+              const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
+              const isDone = task.status === 'done';
+              const isToday = isTaskScheduledForDate(task, todayStr);
 
-            // Determine repeat string
-            const getRepeatBadge = () => {
-              if (task.repeatType === 'daily' || task.repeatDaily) return 'Daily';
-              if (task.repeatType === 'weekly') return 'Weekly';
-              if (task.repeatType === 'weekly_on' && task.repeatDays?.length) {
-                const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                return task.repeatDays.map((d) => dayNames[d]).join(', ');
-              }
-              return null;
-            };
-            const repeatBadge = getRepeatBadge();
+              // Determine repeat string
+              const getRepeatBadge = () => {
+                if (task.repeatType === 'daily' || task.repeatDaily) return 'Daily';
+                if (task.repeatType === 'weekly') return 'Weekly';
+                if (task.repeatType === 'weekly_on' && task.repeatDays?.length) {
+                  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                  return task.repeatDays.map((d) => dayNames[d]).join(', ');
+                }
+                return null;
+              };
+              const repeatBadge = getRepeatBadge();
 
-            return (
-              <div
-                key={task.id}
-                className={`p-4 rounded-3xl border transition-all ${
-                  isDone
-                    ? 'bg-stone-100/60 dark:bg-stone-900/40 border-stone-200 dark:border-stone-800 opacity-60'
-                    : 'bg-white dark:bg-stone-900 border-stone-200/80 dark:border-stone-800 shadow-xs'
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <button
-                      onClick={() => setTaskDone(task.id, !isDone)}
-                      className="mt-0.5 text-stone-400 hover:text-teal-600 focus:outline-none"
-                    >
-                      {isDone ? (
-                        <CheckCircle2 className="w-5 h-5 fill-teal-600 text-white" />
-                      ) : (
-                        <Circle className="w-5 h-5" />
-                      )}
-                    </button>
-
-                    <div className="flex-1 min-w-0">
-                      <h3
-                        className={`font-semibold text-sm text-stone-900 dark:text-stone-100 leading-snug ${
-                          isDone ? 'line-through' : ''
-                        }`}
+              return (
+                <motion.div
+                  key={task.id}
+                  layout
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className={`p-4 rounded-3xl border transition-colors ${
+                    isDone
+                      ? 'bg-stone-100/60 dark:bg-stone-900/40 border-stone-200 dark:border-stone-800 opacity-60'
+                      : 'bg-white dark:bg-stone-900 border-stone-200/80 dark:border-stone-800 shadow-xs'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <button
+                        onClick={() => setTaskDone(task.id, !isDone)}
+                        className="mt-0.5 text-stone-400 hover:text-teal-600 focus:outline-none cursor-pointer"
                       >
-                        {task.title}
-                      </h3>
+                        {isDone ? (
+                          <CheckCircle2 className="w-5 h-5 fill-teal-600 text-white" />
+                        ) : (
+                          <Circle className="w-5 h-5" />
+                        )}
+                      </button>
 
-                      {task.notes && (
-                        <p className="text-xs text-stone-500 line-clamp-1 mt-0.5">
-                          {task.notes}
-                        </p>
+                      <div className="flex-1 min-w-0">
+                        <h3
+                          className={`font-semibold text-sm text-stone-900 dark:text-stone-100 leading-snug ${
+                            isDone ? 'line-through' : ''
+                          }`}
+                        >
+                          {task.title}
+                        </h3>
+
+                        {task.notes && (
+                          <p className="text-xs text-stone-500 line-clamp-1 mt-0.5">
+                            {task.notes}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2 mt-2">
+                          <span
+                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
+                          >
+                            {meta.label}
+                          </span>
+
+                          <span className="text-[11px] font-mono text-stone-500 flex items-center gap-0.5">
+                            <Clock className="w-3 h-3" />
+                            ~{task.estMinutes}m
+                          </span>
+
+                          <span className="text-[11px] text-stone-400 font-mono">
+                            {task.subtasks.length} {task.subtasks.length === 1 ? 'step' : 'steps'}
+                          </span>
+
+                          {/* Small Repeat Badge / Trigger Button */}
+                          <button
+                            onClick={() => openRepeatModal(task)}
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 transition-colors cursor-pointer ${
+                              repeatBadge
+                                ? 'bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold'
+                                : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
+                            }`}
+                            title="Configure repeating schedule"
+                          >
+                            <Repeat className="w-2.5 h-2.5" />
+                            {repeatBadge || 'Repeat'}
+                          </button>
+
+                          {task.scheduledDate && !task.repeatDaily && (
+                            <span
+                              className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                                isToday
+                                  ? 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
+                                  : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
+                              }`}
+                            >
+                              <Calendar className="w-3 h-3" />
+                              {isToday ? 'Today' : task.scheduledDate}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!isDone && (
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => startFocus(task)}
+                          className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 text-teal-800 dark:text-teal-300 transition-colors cursor-pointer"
+                          title="Start Focus"
+                        >
+                          <Play className="w-4 h-4 fill-current ml-0.5" />
+                        </motion.button>
                       )}
 
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <span
-                          className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
-                        >
-                          {meta.label}
-                        </span>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => openEdit(task)}
+                        className="p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
+                        title="Edit task"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </motion.button>
 
-                        <span className="text-[11px] font-mono text-stone-500 flex items-center gap-0.5">
-                          <Clock className="w-3 h-3" />
-                          ~{task.estMinutes}m
-                        </span>
-
-                        <span className="text-[11px] text-stone-400 font-mono">
-                          {task.subtasks.length} {task.subtasks.length === 1 ? 'step' : 'steps'}
-                        </span>
-
-                        {/* Small Repeat Badge / Trigger Button */}
-                        <button
-                          onClick={() => openRepeatModal(task)}
-                          className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 transition-colors ${
-                            repeatBadge
-                              ? 'bg-teal-50 dark:bg-teal-950 text-teal-800 dark:text-teal-300 font-semibold'
-                              : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
-                          }`}
-                          title="Configure repeating schedule"
-                        >
-                          <Repeat className="w-2.5 h-2.5" />
-                          {repeatBadge || 'Repeat'}
-                        </button>
-
-                        {task.scheduledDate && !task.repeatDaily && (
-                          <span
-                            className={`text-[10px] font-medium px-2 py-0.5 rounded-md flex items-center gap-1 ${
-                              isToday
-                                ? 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
-                                : 'bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400'
-                            }`}
-                          >
-                            <Calendar className="w-3 h-3" />
-                            {isToday ? 'Today' : task.scheduledDate}
-                          </span>
-                        )}
-                      </div>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => deleteTask(task.id)}
+                        className="p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-stone-400 hover:text-rose-600 transition-colors cursor-pointer"
+                        title="Delete task"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </motion.button>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {!isDone && (
-                      <button
-                        onClick={() => startFocus(task)}
-                        className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 text-teal-800 dark:text-teal-300 transition-colors"
-                        title="Start Focus"
+                  {/* Quick Schedule for Today button if not scheduled today */}
+                  {!isDone && !isToday && (
+                    <div className="mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
+                      <span className="text-xs text-stone-400">
+                        {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length} steps completed
+                      </span>
+
+                      <motion.button
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => scheduleTaskForToday(task.id)}
+                        className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <Play className="w-4 h-4 fill-current ml-0.5" />
-                      </button>
-                    )}
-
-                    <button
-                      onClick={() => openEdit(task)}
-                      className="p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
-                      title="Edit task"
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </button>
-
-                    <button
-                      onClick={() => deleteTask(task.id)}
-                      className="p-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 text-stone-400 hover:text-rose-600 transition-colors"
-                      title="Delete task"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Quick Schedule for Today button if not scheduled today */}
-                {!isDone && !isToday && (
-                  <div className="mt-3 pt-2.5 border-t border-stone-100 dark:border-stone-800 flex items-center justify-between">
-                    <span className="text-xs text-stone-400">
-                      {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length} steps completed
-                    </span>
-
-                    <button
-                      onClick={() => scheduleTaskForToday(task.id)}
-                      className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1"
-                    >
-                      <span>Plan for Today</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })
-        ) : (
-          <div className="p-8 rounded-3xl bg-stone-50 dark:bg-stone-900/40 border border-dashed border-stone-200 dark:border-stone-800 text-center">
-            <p className="text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1">
-              No tasks found
-            </p>
-            <p className="text-xs text-stone-500 mb-4">
-              {searchQuery
-                ? `No tasks matching "${searchQuery}"`
-                : 'Your library is clear.'}
-            </p>
-            <button
-              onClick={() => openCapture('quick')}
-              className="px-4 py-2 rounded-xl bg-teal-800 text-amber-300 text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm"
+                        <span>Plan for Today</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </motion.button>
+                    </div>
+                  )}
+                </motion.div>
+              );
+            })
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-8 rounded-3xl bg-stone-50 dark:bg-stone-900/40 border border-dashed border-stone-200 dark:border-stone-800 text-center"
             >
-              <Plus className="w-4 h-4" /> Add new task
-            </button>
-          </div>
-        )}
+              <p className="text-sm font-semibold text-stone-700 dark:text-stone-300 mb-1">
+                No tasks found
+              </p>
+              <p className="text-xs text-stone-500 mb-4">
+                {searchQuery
+                  ? `No tasks matching "${searchQuery}"`
+                  : 'Your library is clear.'}
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => openCapture('quick')}
+                className="px-4 py-2 rounded-xl bg-teal-800 text-amber-300 text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Add new task
+              </motion.button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

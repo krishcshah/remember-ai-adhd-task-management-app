@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, TaskCategory, RepeatType, CategoryMeta } from '../types';
 import {
@@ -207,42 +208,63 @@ export const CaptureModal: React.FC = () => {
   const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
-    <div className="fixed inset-0 z-40 bg-stone-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200/80 dark:border-stone-800 animate-slideUp overflow-hidden">
-        {/* Modal Top Bar */}
-        <div className="p-4 border-b border-stone-200/70 dark:border-stone-800 flex items-center justify-between">
-          {/* Tab Switcher */}
-          <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-2xl">
-            <button
-              onClick={() => setActiveTab('quick')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                activeTab === 'quick'
-                  ? 'bg-teal-800 text-white shadow-xs'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              Quick Add
-            </button>
-            <button
-              onClick={() => setActiveTab('braindump')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 ${
-                activeTab === 'braindump'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-              }`}
-            >
-              <Sparkles className="w-3 h-3" />
-              Brain Dump
-            </button>
-          </div>
-
-          <button
+    <AnimatePresence>
+      {isCaptureOpen && (
+        <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-hidden">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={closeCapture}
-            className="p-2 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs"
+          />
+
+          {/* Modal Container */}
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.97 }}
+            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+            className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden relative z-10"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            {/* Modal Top Bar */}
+            <div className="p-4 border-b border-stone-200/70 dark:border-stone-800 flex items-center justify-between">
+              {/* Tab Switcher */}
+              <div className="flex items-center gap-1 bg-stone-100 dark:bg-stone-800 p-1 rounded-2xl">
+                <button
+                  onClick={() => setActiveTab('quick')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'quick'
+                      ? 'bg-teal-800 text-white shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+                  }`}
+                >
+                  Quick Add
+                </button>
+                <button
+                  onClick={() => setActiveTab('braindump')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeTab === 'braindump'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Brain Dump
+                </button>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.1, rotate: 90 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={closeCapture}
+                className="p-2 rounded-full text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </motion.button>
+            </div>
 
         {/* Modal Body */}
         <div className="p-5 overflow-y-auto space-y-4 flex-1">
@@ -670,28 +692,32 @@ export const CaptureModal: React.FC = () => {
           )}
         </div>
 
-        {/* Footer for Quick Add */}
-        {activeTab === 'quick' && (
-          <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-end gap-3 bg-stone-50/50 dark:bg-stone-900/50">
-            <button
-              type="button"
-              onClick={closeCapture}
-              className="px-4 py-2.5 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveQuickTask}
-              disabled={!title.trim()}
-              className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-900 active:scale-98 text-amber-300 font-display font-bold text-sm flex items-center gap-1.5 shadow-sm transition-all disabled:opacity-50"
-            >
-              <Check className="w-4 h-4 stroke-[3px]" />
-              <span>Save Task</span>
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
+            {/* Footer for Quick Add */}
+            {activeTab === 'quick' && (
+              <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-end gap-3 bg-stone-50/50 dark:bg-stone-900/50">
+                <button
+                  type="button"
+                  onClick={closeCapture}
+                  className="px-4 py-2.5 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.96 }}
+                  type="button"
+                  onClick={handleSaveQuickTask}
+                  disabled={!title.trim()}
+                  className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-display font-bold text-sm flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  <Check className="w-4 h-4 stroke-[3px]" />
+                  <span>Save Task</span>
+                </motion.button>
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };

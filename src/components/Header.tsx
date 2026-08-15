@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { Sparkles, SlidersHorizontal, Moon, Sun, BookmarkCheck } from 'lucide-react';
 
@@ -20,7 +21,9 @@ export const Header: React.FC = () => {
     <header className="w-full bg-stone-50/90 dark:bg-stone-900/90 backdrop-blur-md border-b border-stone-200/80 dark:border-stone-800 sticky top-0 z-30 transition-colors">
       <div className="max-w-xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Brand Logo & Name */}
-        <div 
+        <motion.div 
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
           onClick={() => setCurrentTab('now')}
           className="flex items-center gap-2.5 cursor-pointer select-none group"
         >
@@ -40,33 +43,37 @@ export const Header: React.FC = () => {
               {todayFormatted}
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Right Actions: Theme toggle & Settings */}
         <div className="flex items-center gap-1.5">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9, rotate: 180 }}
             onClick={toggleTheme}
             aria-label="Toggle theme"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
           >
             {settings.theme === 'dark' ? (
               <Sun className="w-4 h-4 text-amber-400" />
             ) : (
               <Moon className="w-4 h-4 text-stone-600" />
             )}
-          </button>
+          </motion.button>
 
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => setCurrentTab('settings')}
             aria-label="Settings"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
               currentTab === 'settings'
                 ? 'bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300'
                 : 'text-stone-600 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800'
             }`}
           >
             <SlidersHorizontal className="w-4 h-4" />
-          </button>
+          </motion.button>
         </div>
       </div>
     </header>
