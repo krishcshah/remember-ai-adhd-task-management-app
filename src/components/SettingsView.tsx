@@ -1,7 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
+import {
+  getCustomClientApiKey,
+  setCustomClientApiKey,
+  hasClientApiKey,
+} from '../lib/geminiClient';
 import {
   Sparkles,
   Sliders,
@@ -56,8 +61,10 @@ export const SettingsView: React.FC = () => {
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   
-  // AI Test states
+  // AI Test & Custom Key states
   const [isTestingAi, setIsTestingAi] = useState(false);
+  const [customKeyInput, setCustomKeyInput] = useState(() => getCustomClientApiKey());
+  const [keySavedNotice, setKeySavedNotice] = useState<string | null>(null);
   const [aiTestResult, setAiTestResult] = useState<{
     ok: boolean;
     model?: string;
@@ -548,20 +555,72 @@ export const SettingsView: React.FC = () => {
           </button>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2">
+        <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               Model: <code className="font-mono text-[11px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded">gemini-3.7-flash</code>
             </span>
-            <span className="text-[11px] text-stone-500 dark:text-stone-400">
-              Server-Side Proxy
+            <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
+              {hasClientApiKey() ? 'Client Direct Active' : 'Server/Vercel Backend'}
             </span>
           </div>
 
-          <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-            All AI operations run server-side to protect your API key. In Cloud Run or deployment, set the environment variable <code>GEMINI_API_KEY</code> in your container/cloud settings.
-          </p>
+          {/* Quick API Key Setup / Override for Vercel or Custom Keys */}
+          <div className="pt-1 border-t border-stone-200/60 dark:border-stone-700/60 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
+                Custom Gemini API Key (Optional)
+              </label>
+              {customKeyInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomKeyInput('');
+                    setCustomClientApiKey('');
+                    setKeySavedNotice('Custom key removed');
+                    setTimeout(() => setKeySavedNotice(null), 2500);
+                  }}
+                  className="text-[10px] text-rose-500 hover:underline"
+                >
+                  Clear Key
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                value={customKeyInput}
+                onChange={(e) => setCustomKeyInput(e.target.value)}
+                placeholder="AIzaSy... (Paste Gemini Key here for instant live AI)"
+                className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomClientApiKey(customKeyInput);
+                  setKeySavedNotice('Key saved to local browser!');
+                  setTimeout(() => setKeySavedNotice(null), 2500);
+                  handleRunAiTest();
+                }}
+                disabled={!customKeyInput.trim()}
+                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
+              >
+                Save & Test
+              </button>
+            </div>
+
+            {keySavedNotice && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium animate-fadeIn">
+                ✓ {keySavedNotice}
+              </p>
+            )}
+
+            <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+              💡 <strong>For Vercel Deployments:</strong> You can either paste your Gemini API Key above for instant local activation, or in Vercel Dashboard add <code>GEMINI_API_KEY</code> to <strong>Project Settings → Environment Variables</strong> and redeploy your deployment.
+            </p>
+          </div>
 
           {aiTestResult && (
             <div
@@ -602,7 +661,7 @@ export const SettingsView: React.FC = () => {
                     {aiTestResult.error}
                   </p>
                   <p>
-                    Check that <code>GEMINI_API_KEY</code> is added to your Cloud Run service environment variables or AI Studio Secrets.
+                    Paste your Gemini API key in the input box above or add <code>GEMINI_API_KEY</code> in your deployment environment variables and trigger a redeploy.
                   </p>
                 </div>
               )}

@@ -34,8 +34,43 @@ export const CalendarView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<number>(1);
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
+
+  const handlePrevWeek = () => {
+    setSlideDirection(-1);
+    setWeekOffset((p) => p - 1);
+  };
+
+  const handleNextWeek = () => {
+    setSlideDirection(1);
+    setWeekOffset((p) => p + 1);
+  };
+
+  const handleGoToday = () => {
+    setSlideDirection(weekOffset > 0 ? -1 : 1);
+    setWeekOffset(0);
+    setSelectedDate(getTodayDateString());
+  };
+
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 120 : -120,
+      opacity: 0,
+      scale: 0.98,
+    }),
+    center: {
+      x: 0,
+      opacity: 1,
+      scale: 1,
+    },
+    exit: (direction: number) => ({
+      x: direction > 0 ? -120 : 120,
+      opacity: 0,
+      scale: 0.98,
+    }),
+  };
 
   // Generate 7 days for current week
   const getWeekDates = (offset: number) => {
@@ -152,85 +187,118 @@ export const CalendarView: React.FC = () => {
         <div className="bg-white dark:bg-stone-900 rounded-3xl p-4 shadow-sm border border-stone-200/80 dark:border-stone-800">
           {/* Week Navigation bar */}
           <div className="flex items-center justify-between mb-3 px-1">
-            <span className="text-xs font-bold text-stone-700 dark:text-stone-300 font-display">
-              {weekDays[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
-              {weekDays[6].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-stone-700 dark:text-stone-300 font-display">
+                {weekDays[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
+                {weekDays[6].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </span>
+              <span className="hidden sm:inline-block text-[10px] text-stone-400 font-medium">
+                (slide / swipe)
+              </span>
+            </div>
             <div className="flex items-center gap-1">
               <motion.button
                 whileTap={{ scale: 0.85 }}
-                onClick={() => setWeekOffset((p) => p - 1)}
+                onClick={handlePrevWeek}
                 aria-label="Previous week"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer"
+                title="Previous week"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setWeekOffset(0);
-                  setSelectedDate(getTodayDateString());
-                }}
+                onClick={handleGoToday}
                 className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 dark:text-teal-400 hover:underline cursor-pointer"
               >
                 Today
               </motion.button>
               <motion.button
                 whileTap={{ scale: 0.85 }}
-                onClick={() => setWeekOffset((p) => p + 1)}
+                onClick={handleNextWeek}
                 aria-label="Next week"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer"
+                title="Next week"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
               >
                 <ChevronRight className="w-4 h-4" />
               </motion.button>
             </div>
           </div>
 
-          {/* 7-Day Horizontal Pills */}
-          <div className="grid grid-cols-7 gap-1.5">
-            {weekDays.map((d) => {
-              const isSelected = d.iso === selectedDate;
-              const dots = getDotsForDate(d.iso);
+          {/* 7-Day Horizontal Pills with Slide Animation & Drag-to-Slide */}
+          <div className="relative overflow-hidden min-h-[78px] touch-pan-y select-none">
+            <AnimatePresence mode="popLayout" initial={false} custom={slideDirection}>
+              <motion.div
+                key={weekOffset}
+                custom={slideDirection}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{
+                  x: { type: 'spring', stiffness: 350, damping: 32 },
+                  opacity: { duration: 0.18 },
+                  scale: { duration: 0.18 },
+                }}
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.18}
+                onDragEnd={(_, info) => {
+                  const swipe = info.offset.x;
+                  const velocity = info.velocity.x;
+                  if (swipe < -40 || velocity < -250) {
+                    handleNextWeek();
+                  } else if (swipe > 40 || velocity > 250) {
+                    handlePrevWeek();
+                  }
+                }}
+                className="grid grid-cols-7 gap-1.5 cursor-grab active:cursor-grabbing w-full"
+              >
+                {weekDays.map((d) => {
+                  const isSelected = d.iso === selectedDate;
+                  const dots = getDotsForDate(d.iso);
 
-              return (
-                <motion.button
-                  key={d.iso}
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setSelectedDate(d.iso)}
-                  className={`flex flex-col items-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-md'
-                      : d.isToday
-                      ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800'
-                      : 'bg-stone-50 dark:bg-stone-900/60 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/50 dark:border-stone-800'
-                  }`}
-                >
-                  <span className="text-[11px] font-medium opacity-80 uppercase tracking-tighter">
-                    {d.dayName}
-                  </span>
-                  <span className="font-mono text-base font-bold my-0.5">
-                    {d.dayNumber}
-                  </span>
+                  return (
+                    <motion.button
+                      key={d.iso}
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSelectedDate(d.iso)}
+                      className={`flex flex-col items-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-md'
+                          : d.isToday
+                          ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800'
+                          : 'bg-stone-50 dark:bg-stone-900/60 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/50 dark:border-stone-800'
+                      }`}
+                    >
+                      <span className="text-[11px] font-medium opacity-80 uppercase tracking-tighter">
+                        {d.dayName}
+                      </span>
+                      <span className="font-mono text-base font-bold my-0.5">
+                        {d.dayNumber}
+                      </span>
 
-                  {/* Category dot indicators */}
-                  <div className="flex items-center gap-0.5 h-2">
-                    {dots.map((cat, i) => {
-                      const dotColor = allCategories[cat]?.dotColor || '#78716c';
-                      return (
-                        <span
-                          key={i}
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{
-                            backgroundColor: isSelected ? '#FDE047' : dotColor,
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </motion.button>
-              );
-            })}
+                      {/* Category dot indicators */}
+                      <div className="flex items-center gap-0.5 h-2">
+                        {dots.map((cat, i) => {
+                          const dotColor = allCategories[cat]?.dotColor || '#78716c';
+                          return (
+                            <span
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{
+                                backgroundColor: isSelected ? '#FDE047' : dotColor,
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    </motion.button>
+                  );
+                })}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       ) : (

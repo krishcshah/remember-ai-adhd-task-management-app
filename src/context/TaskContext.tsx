@@ -17,6 +17,15 @@ import {
 } from '../utils/storage';
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
 import {
+  directClientBreakdown,
+  directClientBrainDump,
+  directClientChatEdit,
+  directClientTest,
+  hasClientApiKey,
+  getCustomClientApiKey,
+  setCustomClientApiKey,
+} from '../lib/geminiClient';
+import {
   syncTasksToCloud,
   syncTaskDeletionToCloud,
   clearAllTasksFromCloud,
@@ -358,7 +367,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const closeEdit = useCallback(() => {
     setIsEditOpen(false);
-    setEditingTask(null);
   }, []);
 
   const openRepeatModal = useCallback((task: Task) => {
@@ -368,7 +376,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const closeRepeatModal = useCallback(() => {
     setIsRepeatOpen(false);
-    setRepeatTargetTask(null);
   }, []);
 
   const openAddCategoryModal = useCallback(() => {
@@ -512,7 +519,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
-  // AI API with seamless Fallback
+  // AI API with seamless multi-tier execution (Server / Vercel Serverless / Direct Client / Offline)
   const requestBreakdown = useCallback(
     async (
       title: string,
@@ -522,6 +529,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) => {
       setAiLoading(true);
       setAiError(null);
+      
+      // Tier 1: Try Server or Serverless API
       try {
         const res = await fetch('/api/ai/breakdown', {
           method: 'POST',
@@ -536,36 +545,68 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }),
         });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server returned status ${res.status}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.title || data.subtasks)) {
+            return {
+              title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : undefined,
+              category: (data.category as TaskCategory) || category || 'other',
+              repeatType: (data.repeatType as RepeatType) || 'none',
+              repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays : undefined,
+              granularity: (data.granularity as (1 | 2 | 3)) || difficulty || 1,
+              estimatedMinutes: Number(data.estimatedMinutes) || 15,
+              subtasks: Array.isArray(data.subtasks)
+                ? data.subtasks.map((s: any) => ({
+                    title: String(s.title),
+                    estimatedMinutes: Number(s.estimatedMinutes) || 4,
+                  }))
+                : [],
+              isAiGenerated: true,
+            };
+          }
         }
-
-        const data = await res.json();
-        return {
-          title: typeof data.title === 'string' && data.title.trim() ? data.title.trim() : undefined,
-          category: (data.category as TaskCategory) || category || 'other',
-          repeatType: (data.repeatType as RepeatType) || 'none',
-          repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays : undefined,
-          granularity: (data.granularity as (1 | 2 | 3)) || difficulty || 1,
-          estimatedMinutes: Number(data.estimatedMinutes) || 15,
-          subtasks: Array.isArray(data.subtasks)
-            ? data.subtasks.map((s: any) => ({
-                title: String(s.title),
-                estimatedMinutes: Number(s.estimatedMinutes) || 4,
-              }))
-            : [],
-          isAiGenerated: true,
-        };
-      } catch (err: any) {
-        const msg = err?.message || 'AI generation failed';
-        console.warn('AI Breakdown API failed, using intelligent offline fallback:', msg);
-        setAiError(msg);
-        const fb = fallbackBreakdown(title, difficulty, notes, category);
-        return { ...fb, isAiGenerated: false };
-      } finally {
-        setAiLoading(false);
+      } catch (err) {
+        console.warn('Server breakdown call failed, checking direct client key...', err);
       }
+
+      // Tier 2: Try Direct Client-Side Gemini (e.g. Vercel Static deployment with key)
+      if (hasClientApiKey()) {
+        try {
+          const clientData = await directClientBreakdown({
+            title,
+            difficulty: difficulty || settings.difficulty || 1,
+            notes,
+            category,
+            context: settings.context,
+            availableCategories: Object.keys(categories),
+          });
+          if (clientData && (clientData.title || clientData.subtasks)) {
+            return {
+              title: typeof clientData.title === 'string' && clientData.title.trim() ? clientData.title.trim() : undefined,
+              category: (clientData.category as TaskCategory) || category || 'other',
+              repeatType: (clientData.repeatType as RepeatType) || 'none',
+              repeatDays: Array.isArray(clientData.repeatDays) ? clientData.repeatDays : undefined,
+              granularity: (clientData.granularity as (1 | 2 | 3)) || difficulty || 1,
+              estimatedMinutes: Number(clientData.estimatedMinutes) || 15,
+              subtasks: Array.isArray(clientData.subtasks)
+                ? clientData.subtasks.map((s: any) => ({
+                    title: String(s.title),
+                    estimatedMinutes: Number(s.estimatedMinutes) || 4,
+                  }))
+                : [],
+              isAiGenerated: true,
+            };
+          }
+        } catch (clientErr: any) {
+          console.warn('Direct client Gemini failed:', clientErr);
+          setAiError(clientErr?.message || 'Direct client Gemini failed');
+        }
+      }
+
+      // Tier 3: Intelligent offline rule-based fallback
+      const fb = fallbackBreakdown(title, difficulty, notes, category);
+      setAiLoading(false);
+      return { ...fb, isAiGenerated: false };
     },
     [settings.difficulty, settings.context, categories]
   );
@@ -574,6 +615,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (text: string) => {
       setAiLoading(true);
       setAiError(null);
+      
+      // Tier 1: Try Server / Serverless API
       try {
         const res = await fetch('/api/ai/braindump', {
           method: 'POST',
@@ -584,35 +627,57 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }),
         });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server returned status ${res.status}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.tasks) && data.tasks.length > 0) {
+            return data.tasks.map((t: any) => ({
+              title: String(t.title),
+              category: (t.category as TaskCategory) || 'other',
+              estimatedMinutes: Number(t.estimatedMinutes) || 15,
+              subtasks: Array.isArray(t.subtasks)
+                ? t.subtasks.map((s: any) => ({
+                    title: String(s.title),
+                    estimatedMinutes: Number(s.estimatedMinutes) || 5,
+                  }))
+                : undefined,
+              isAiGenerated: true,
+            }));
+          }
         }
-
-        const data = await res.json();
-        if (Array.isArray(data.tasks) && data.tasks.length > 0) {
-          return data.tasks.map((t: any) => ({
-            title: String(t.title),
-            category: (t.category as TaskCategory) || 'other',
-            estimatedMinutes: Number(t.estimatedMinutes) || 15,
-            subtasks: Array.isArray(t.subtasks)
-              ? t.subtasks.map((s: any) => ({
-                  title: String(s.title),
-                  estimatedMinutes: Number(s.estimatedMinutes) || 5,
-                }))
-              : undefined,
-            isAiGenerated: true,
-          }));
-        }
-        return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
-      } catch (err: any) {
-        const msg = err?.message || 'AI brain dump parsing failed';
-        console.warn('AI BrainDump API failed, using offline fallback:', msg);
-        setAiError(msg);
-        return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
-      } finally {
-        setAiLoading(false);
+      } catch (err) {
+        console.warn('Server brain dump call failed, checking direct client key...', err);
       }
+
+      // Tier 2: Try Direct Client-Side Gemini
+      if (hasClientApiKey()) {
+        try {
+          const clientData = await directClientBrainDump({
+            text,
+            context: settings.context,
+          });
+          if (clientData && Array.isArray(clientData.tasks) && clientData.tasks.length > 0) {
+            return clientData.tasks.map((t: any) => ({
+              title: String(t.title),
+              category: (t.category as TaskCategory) || 'other',
+              estimatedMinutes: Number(t.estimatedMinutes) || 15,
+              subtasks: Array.isArray(t.subtasks)
+                ? t.subtasks.map((s: any) => ({
+                    title: String(s.title),
+                    estimatedMinutes: Number(s.estimatedMinutes) || 5,
+                  }))
+                : undefined,
+              isAiGenerated: true,
+            }));
+          }
+        } catch (clientErr: any) {
+          console.warn('Direct client BrainDump failed:', clientErr);
+          setAiError(clientErr?.message || 'Direct client AI failed');
+        }
+      }
+
+      // Tier 3: Intelligent offline fallback
+      setAiLoading(false);
+      return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
     },
     [settings.context]
   );
@@ -621,6 +686,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (task: Task, instruction: string) => {
       setAiLoading(true);
       setAiError(null);
+      
+      // Tier 1: Try Server / Serverless API
       try {
         const res = await fetch('/api/ai/chat-edit', {
           method: 'POST',
@@ -632,49 +699,94 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }),
         });
 
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Server status ${res.status}`);
+        if (res.ok) {
+          const data = await res.json();
+          return {
+            title: String(data.title || task.title),
+            category: (data.category as TaskCategory) || task.category,
+            estimatedMinutes: Number(data.estimatedMinutes) || task.estMinutes,
+            subtasks: Array.isArray(data.subtasks)
+              ? data.subtasks.map((s: any) => ({
+                  title: String(s.title),
+                  estimatedMinutes: Number(s.estimatedMinutes) || 4,
+                }))
+              : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
+            isAiGenerated: true,
+          };
         }
-
-        const data = await res.json();
-        return {
-          title: String(data.title || task.title),
-          category: (data.category as TaskCategory) || task.category,
-          estimatedMinutes: Number(data.estimatedMinutes) || task.estMinutes,
-          subtasks: Array.isArray(data.subtasks)
-            ? data.subtasks.map((s: any) => ({
-                title: String(s.title),
-                estimatedMinutes: Number(s.estimatedMinutes) || 4,
-              }))
-            : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
-          isAiGenerated: true,
-        };
-      } catch (err: any) {
-        const msg = err?.message || 'AI edit failed';
-        console.warn('AI ChatEdit API failed, using offline fallback:', msg);
-        setAiError(msg);
-        const fb = fallbackChatEdit(task, instruction);
-        return { ...fb, isAiGenerated: false };
-      } finally {
-        setAiLoading(false);
+      } catch (err) {
+        console.warn('Server chat edit call failed, checking direct client key...', err);
       }
+
+      // Tier 2: Try Direct Client-Side Gemini
+      if (hasClientApiKey()) {
+        try {
+          const clientData = await directClientChatEdit({
+            task,
+            instruction,
+            context: settings.context,
+          });
+          if (clientData) {
+            return {
+              title: String(clientData.title || task.title),
+              category: (clientData.category as TaskCategory) || task.category,
+              estimatedMinutes: Number(clientData.estimatedMinutes) || task.estMinutes,
+              subtasks: Array.isArray(clientData.subtasks)
+                ? clientData.subtasks.map((s: any) => ({
+                    title: String(s.title),
+                    estimatedMinutes: Number(s.estimatedMinutes) || 4,
+                  }))
+                : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
+              isAiGenerated: true,
+            };
+          }
+        } catch (clientErr: any) {
+          console.warn('Direct client ChatEdit failed:', clientErr);
+          setAiError(clientErr?.message || 'Direct client AI failed');
+        }
+      }
+
+      // Tier 3: Intelligent offline fallback
+      setAiLoading(false);
+      const fb = fallbackChatEdit(task, instruction);
+      return { ...fb, isAiGenerated: false };
     },
     [settings.context]
   );
 
-  const testAiConnection = useCallback(async () => {
+  const testAiConnection = useCallback(async (customKeyOverride?: string) => {
+    // If a custom key override is passed, test client-side directly
+    if (customKeyOverride) {
+      return await directClientTest(customKeyOverride);
+    }
+
     try {
       const res = await fetch('/api/ai/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
-      return data;
-    } catch (err: any) {
+      if (res.ok) {
+        const data = await res.json();
+        return data;
+      }
+      const errData = await res.json().catch(() => ({}));
+      
+      // If server failed, try direct client if key exists
+      if (hasClientApiKey()) {
+        return await directClientTest();
+      }
+
       return {
         ok: false,
-        error: err?.message || 'Network error connecting to AI server endpoint',
+        error: errData.error || `Server status ${res.status}`,
+      };
+    } catch (err: any) {
+      if (hasClientApiKey()) {
+        return await directClientTest();
+      }
+      return {
+        ok: false,
+        error: err?.message || 'Failed to connect to backend server / Vercel API',
       };
     }
   }, []);

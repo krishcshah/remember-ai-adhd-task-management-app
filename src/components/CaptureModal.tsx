@@ -89,8 +89,6 @@ export const CaptureModal: React.FC = () => {
     }
   }, [isCaptureOpen, settings.difficulty]);
 
-  if (!isCaptureOpen) return null;
-
   const toggleRepeatDay = (dayId: number) => {
     setRepeatDays((prev) =>
       prev.includes(dayId) ? prev.filter((d) => d !== dayId) : [...prev, dayId]
@@ -221,17 +219,22 @@ export const CaptureModal: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
             onClick={closeCapture}
             className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs"
           />
 
           {/* Modal Container */}
           <motion.div
-            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            initial={{ opacity: 0, y: 60, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 30, scale: 0.97 }}
-            transition={{ type: 'spring', damping: 28, stiffness: 350 }}
+            exit={{ opacity: 0, y: 50, scale: 0.96 }}
+            transition={{
+              type: 'spring',
+              damping: 32,
+              stiffness: 400,
+              mass: 0.8,
+            }}
             className="bg-white dark:bg-stone-900 w-full max-w-lg rounded-t-3xl sm:rounded-3xl max-h-[92vh] flex flex-col shadow-2xl border border-stone-200/80 dark:border-stone-800 overflow-hidden relative z-10"
           >
             {/* Modal Top Bar */}
