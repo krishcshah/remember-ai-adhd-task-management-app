@@ -137,9 +137,14 @@ export const CaptureModal: React.FC = () => {
         }))
       );
       
-      setAiEnhancedNotice('✨ AI auto-scaffolded: polished title with emoji, category, repeat pattern & micro-steps!');
-    } catch (e) {
+      if (res.isAiGenerated !== false) {
+        setAiEnhancedNotice('✨ Gemini 3.7 Flash: scaffolded emoji title, smart category, repeat pattern & micro-steps!');
+      } else {
+        setAiEnhancedNotice('⚡ Generated with smart offline assistant (AI service offline or check API Key in Settings)');
+      }
+    } catch (e: any) {
       console.error(e);
+      setAiEnhancedNotice(`Notice: ${e?.message || 'Generated using offline assistant'}`);
     }
   };
 

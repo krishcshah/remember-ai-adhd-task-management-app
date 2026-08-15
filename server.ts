@@ -6,8 +6,23 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+function getApiKey(): string | null {
+  const rawKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env.API_KEY;
+
+  if (!rawKey) return null;
+  const cleaned = rawKey.trim().replace(/^["']|["']$/g, "");
+  if (!cleaned || cleaned === "MY_GEMINI_API_KEY" || cleaned === "YOUR_API_KEY") {
+    return null;
+  }
+  return cleaned;
+}
+
+function getGeminiClient(): GoogleGenAI | null {
+  const apiKey = getApiKey();
   if (!apiKey) {
     return null;
   }
@@ -21,16 +36,119 @@ function getGeminiClient() {
   });
 }
 
+function parseGeminiJSON(text: string | undefined): any {
+  if (!text || typeof text !== "string") {
+    throw new Error("Empty or invalid response from AI model");
+  }
+  let cleaned = text.trim();
+  // Remove markdown code fences if present (e.g. ```json ... ``` or ``` ...)
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+  }
+  try {
+    return JSON.parse(cleaned);
+  } catch (err) {
+    // Attempt regex extraction of first JSON object or array
+    const objMatch = cleaned.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (objMatch) {
+      return JSON.parse(objMatch[0]);
+    }
+    throw new Error(`Failed to parse AI response as JSON: ${cleaned.substring(0, 120)}`);
+  }
+}
+
+async function generateGeminiContent(
+  ai: GoogleGenAI,
+  prompt: string,
+  config?: any
+) {
+  const primaryModel = "gemini-3.7-flash";
+  const fallbackModel = "gemini-flash-latest";
+
+  try {
+    const response = await ai.models.generateContent({
+      model: primaryModel,
+      contents: prompt,
+      config,
+    });
+    return { response, modelUsed: primaryModel };
+  } catch (primaryErr: any) {
+    console.warn(`Primary model (${primaryModel}) error:`, primaryErr?.message || primaryErr);
+    // If model not found (404) or unavailable, try fallback alias
+    if (
+      primaryErr?.status === 404 ||
+      (typeof primaryErr?.message === "string" &&
+        (primaryErr.message.includes("not found") || primaryErr.message.includes("is not supported")))
+    ) {
+      console.log(`Attempting fallback model (${fallbackModel})...`);
+      const fallbackResponse = await ai.models.generateContent({
+        model: fallbackModel,
+        contents: prompt,
+        config,
+      });
+      return { response: fallbackResponse, modelUsed: fallbackModel };
+    }
+    throw primaryErr;
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
 
   app.use(express.json({ limit: "10mb" }));
 
-  // API Health Check
+  // API Health & AI Status Check
   app.get("/api/health", (_req, res) => {
-    const hasApiKey = Boolean(process.env.GEMINI_API_KEY);
-    res.json({ status: "ok", aiAvailable: hasApiKey });
+    const key = getApiKey();
+    res.json({
+      status: "ok",
+      aiAvailable: Boolean(key),
+      keySource: key ? "server_env" : "missing",
+    });
+  });
+
+  // Live AI Connection Test Endpoint
+  app.post("/api/ai/test", async (_req, res) => {
+    const startTime = Date.now();
+    try {
+      const ai = getGeminiClient();
+      if (!ai) {
+        return res.status(503).json({
+          ok: false,
+          error: "GEMINI_API_KEY is not configured in server environment or Secrets.",
+          aiAvailable: false,
+        });
+      }
+
+      const { response, modelUsed } = await generateGeminiContent(
+        ai,
+        "Respond with a 3-word confirmation in JSON: {\"status\":\"ready\",\"message\":\"AI is active\"}",
+        {
+          responseMimeType: "application/json",
+        }
+      );
+
+      const latencyMs = Date.now() - startTime;
+      const text = response.text;
+      const parsed = parseGeminiJSON(text);
+
+      return res.json({
+        ok: true,
+        model: modelUsed,
+        latencyMs,
+        result: parsed,
+      });
+    } catch (err: any) {
+      console.error("AI live test failed:", err);
+      const latencyMs = Date.now() - startTime;
+      return res.status(500).json({
+        ok: false,
+        error: err.message || "Failed to communicate with Gemini API",
+        details: err?.statusText || err?.code || "GENAI_ERROR",
+        latencyMs,
+      });
+    }
   });
 
   // AI Task Breakdown Endpoint
@@ -92,68 +210,60 @@ ${notes ? `Additional Notes: "${notes}"` : ""}
 ${category ? `Suggested Category Hint: "${category}"` : ""}
 ${context ? `User Life Context: "${context}"` : ""}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: {
-                type: Type.STRING,
-                description: "Rewritten, clean action title prefixed with a relevant emoji",
-              },
-              category: {
-                type: Type.STRING,
-                description: "Category identifier matching one of the available categories",
-              },
-              repeatType: {
-                type: Type.STRING,
-                description: "Inferred repeat pattern: 'none', 'daily', 'weekly', or 'weekly_on'",
-              },
-              repeatDays: {
-                type: Type.ARRAY,
-                items: { type: Type.INTEGER },
-                description: "Array of day numbers (0=Sun, 1=Mon... 6=Sat) if repeating weekly on specific days",
-              },
-              granularity: {
-                type: Type.INTEGER,
-                description: "Chosen granularity level: 1 (Bite-sized), 2 (Normal), or 3 (Deep)",
-              },
-              estimatedMinutes: {
-                type: Type.INTEGER,
-                description: "Total estimated minutes for entire task",
-              },
-              subtasks: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: {
-                      type: Type.STRING,
-                      description: "Subtask title starting with an imperative verb",
-                    },
-                    estimatedMinutes: {
-                      type: Type.INTEGER,
-                      description: "Estimated minutes for this subtask",
-                    },
+      const { response } = await generateGeminiContent(ai, prompt, {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: {
+              type: Type.STRING,
+              description: "Rewritten, clean action title prefixed with a relevant emoji",
+            },
+            category: {
+              type: Type.STRING,
+              description: "Category identifier matching one of the available categories",
+            },
+            repeatType: {
+              type: Type.STRING,
+              description: "Inferred repeat pattern: 'none', 'daily', 'weekly', or 'weekly_on'",
+            },
+            repeatDays: {
+              type: Type.ARRAY,
+              items: { type: Type.INTEGER },
+              description: "Array of day numbers (0=Sun, 1=Mon... 6=Sat) if repeating weekly on specific days",
+            },
+            granularity: {
+              type: Type.INTEGER,
+              description: "Chosen granularity level: 1 (Bite-sized), 2 (Normal), or 3 (Deep)",
+            },
+            estimatedMinutes: {
+              type: Type.INTEGER,
+              description: "Total estimated minutes for entire task",
+            },
+            subtasks: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: {
+                    type: Type.STRING,
+                    description: "Subtask title starting with an imperative verb",
                   },
-                  required: ["title", "estimatedMinutes"],
+                  estimatedMinutes: {
+                    type: Type.INTEGER,
+                    description: "Estimated minutes for this subtask",
+                  },
                 },
+                required: ["title", "estimatedMinutes"],
               },
             },
-            required: ["title", "category", "repeatType", "granularity", "estimatedMinutes", "subtasks"],
           },
+          required: ["title", "category", "repeatType", "granularity", "estimatedMinutes", "subtasks"],
         },
       });
 
       const text = response.text;
-      if (!text) {
-        throw new Error("No response from AI model");
-      }
-
-      const parsed = JSON.parse(text);
+      const parsed = parseGeminiJSON(text);
       return res.json(parsed);
     } catch (err: any) {
       console.error("AI breakdown error:", err);
@@ -200,52 +310,44 @@ Rules:
 6. Provide a realistic time estimate in minutes (estMinutes).
 7. Optionally include 2-4 starting subtasks if obvious.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: {
-                  type: Type.STRING,
-                  description: "Concise actionable title starting with a verb",
-                },
-                category: {
-                  type: Type.STRING,
-                  description: "work, personal, health, errands, study, or other",
-                },
-                estimatedMinutes: {
-                  type: Type.INTEGER,
-                  description: "Estimated minutes",
-                },
-                subtasks: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING },
-                      estimatedMinutes: { type: Type.INTEGER },
-                    },
-                    required: ["title", "estimatedMinutes"],
+      const { response } = await generateGeminiContent(ai, prompt, {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              title: {
+                type: Type.STRING,
+                description: "Concise actionable title starting with a verb",
+              },
+              category: {
+                type: Type.STRING,
+                description: "work, personal, health, errands, study, or other",
+              },
+              estimatedMinutes: {
+                type: Type.INTEGER,
+                description: "Estimated minutes",
+              },
+              subtasks: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    title: { type: Type.STRING },
+                    estimatedMinutes: { type: Type.INTEGER },
                   },
+                  required: ["title", "estimatedMinutes"],
                 },
               },
-              required: ["title", "category", "estimatedMinutes"],
             },
+            required: ["title", "category", "estimatedMinutes"],
           },
         },
       });
 
       const text = response.text;
-      if (!text) {
-        throw new Error("No response from AI model");
-      }
-
-      const parsed = JSON.parse(text);
+      const parsed = parseGeminiJSON(text);
       return res.json({ tasks: parsed });
     } catch (err: any) {
       console.error("AI braindump error:", err);
@@ -280,47 +382,39 @@ Current Task:
 Title: "${task.title}"
 Category: "${task.category}"
 Current Subtasks:
-${(task.subtasks || []).map((s: any, i: number) => `${i + 1}. ${s.title} (${s.estMinutes}m)`).join("\n")}
+${(task.subtasks || []).map((s: any, i: number) => `${i + 1}. ${s.title} (${s.estMinutes || 5}m)`).join("\n")}
 
 User Request: "${instruction}"
 ${context ? `User Life Context: "${context}"` : ""}
 
 Update the task title, category, total estimated minutes, and subtask list according to the user's request. Keep subtask titles starting with imperative verbs.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.7-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              category: { type: Type.STRING },
-              estimatedMinutes: { type: Type.INTEGER },
-              subtasks: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: { type: Type.STRING },
-                    estimatedMinutes: { type: Type.INTEGER },
-                  },
-                  required: ["title", "estimatedMinutes"],
+      const { response } = await generateGeminiContent(ai, prompt, {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            category: { type: Type.STRING },
+            estimatedMinutes: { type: Type.INTEGER },
+            subtasks: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  estimatedMinutes: { type: Type.INTEGER },
                 },
+                required: ["title", "estimatedMinutes"],
               },
             },
-            required: ["title", "category", "estimatedMinutes", "subtasks"],
           },
+          required: ["title", "category", "estimatedMinutes", "subtasks"],
         },
       });
 
       const text = response.text;
-      if (!text) {
-        throw new Error("No response from AI model");
-      }
-
-      const parsed = JSON.parse(text);
+      const parsed = parseGeminiJSON(text);
       return res.json(parsed);
     } catch (err: any) {
       console.error("AI chat-edit error:", err);
@@ -352,3 +446,4 @@ Update the task title, category, total estimated minutes, and subtask list accor
 }
 
 startServer();
+

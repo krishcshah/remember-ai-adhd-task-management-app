@@ -48,12 +48,35 @@ export const SettingsView: React.FC = () => {
     clearAllData,
     exportDataJSON,
     importDataJSON,
+    testAiConnection,
   } = useTaskContext();
 
   const [contextInput, setContextInput] = useState(settings.context);
   const [copied, setCopied] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  
+  // AI Test states
+  const [isTestingAi, setIsTestingAi] = useState(false);
+  const [aiTestResult, setAiTestResult] = useState<{
+    ok: boolean;
+    model?: string;
+    latencyMs?: number;
+    error?: string;
+  } | null>(null);
+
+  const handleRunAiTest = async () => {
+    setIsTestingAi(true);
+    setAiTestResult(null);
+    try {
+      const result = await testAiConnection();
+      setAiTestResult(result);
+    } catch (e: any) {
+      setAiTestResult({ ok: false, error: e?.message || 'Connection failed' });
+    } finally {
+      setIsTestingAi(false);
+    }
+  };
 
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
@@ -499,21 +522,92 @@ export const SettingsView: React.FC = () => {
         )}
       </div>
 
-      {/* AI Engine & Gemini API Keys Info */}
-      <div className="bg-stone-50 dark:bg-stone-900/60 p-4 rounded-3xl border border-stone-200/80 dark:border-stone-800 flex items-start gap-3">
-        <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
-          <KeyRound className="w-4 h-4" />
+      {/* AI Engine & Gemini Diagnostics */}
+      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <KeyRound className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-sm">Gemini AI Engine Status</h2>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                Powers AI Magic subtask decomposition & brain dump extraction
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRunAiTest}
+            disabled={isTestingAi}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isTestingAi ? 'animate-spin' : ''}`} />
+            <span>{isTestingAi ? 'Testing...' : 'Test AI Connection'}</span>
+          </button>
         </div>
-        <div className="flex-1 space-y-1">
-          <p className="text-xs font-bold text-stone-800 dark:text-stone-200 flex items-center justify-between">
-            <span>Gemini 3.7 Flash AI Model & Secret Keys</span>
-            <span className="text-[10px] bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-mono">
-              gemini-3.7-flash
+
+        <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Model: <code className="font-mono text-[11px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded">gemini-3.7-flash</code>
             </span>
-          </p>
+            <span className="text-[11px] text-stone-500 dark:text-stone-400">
+              Server-Side Proxy
+            </span>
+          </div>
+
           <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-            All AI task decomposition, natural language tweaking, and brain-dump sorting run through Google's latest <strong>gemini-3.7-flash</strong> model. Your Gemini API key is securely managed on the cloud server. You can configure or update your key anytime in the <strong>Secrets</strong> panel of AI Studio.
+            All AI operations run server-side to protect your API key. In Cloud Run or deployment, set the environment variable <code>GEMINI_API_KEY</code> in your container/cloud settings.
           </p>
+
+          {aiTestResult && (
+            <div
+              className={`p-3 rounded-xl border text-xs animate-fadeIn space-y-1.5 ${
+                aiTestResult.ok
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
+                  : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200'
+              }`}
+            >
+              <div className="flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5">
+                  {aiTestResult.ok ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      AI Live & Responding!
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                      AI Connection Failed
+                    </>
+                  )}
+                </span>
+                {aiTestResult.latencyMs && (
+                  <span className="font-mono text-[10px] opacity-80">
+                    {aiTestResult.latencyMs}ms latency
+                  </span>
+                )}
+              </div>
+
+              {aiTestResult.ok ? (
+                <p className="text-[11px] opacity-90">
+                  Successfully verified model ({aiTestResult.model || 'gemini-3.7-flash'}). All breakdown and brain-dump features are active.
+                </p>
+              ) : (
+                <div className="space-y-1 text-[11px] opacity-90">
+                  <p className="font-mono bg-white/60 dark:bg-black/40 p-2 rounded-lg border border-rose-200 dark:border-rose-800 break-words">
+                    {aiTestResult.error}
+                  </p>
+                  <p>
+                    Check that <code>GEMINI_API_KEY</code> is added to your Cloud Run service environment variables or AI Studio Secrets.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

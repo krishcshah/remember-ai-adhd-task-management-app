@@ -100,14 +100,16 @@ interface TaskContextType {
     granularity?: 1 | 2 | 3;
     estimatedMinutes: number;
     subtasks: { title: string; estimatedMinutes: number }[];
+    isAiGenerated?: boolean;
   }>;
   requestBrainDump: (
     text: string
-  ) => Promise<Array<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[] }>>;
+  ) => Promise<Array<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>>;
   requestChatEdit: (
     task: Task,
     instruction: string
-  ) => Promise<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[] }>;
+  ) => Promise<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>;
+  testAiConnection: () => Promise<{ ok: boolean; model?: string; latencyMs?: number; error?: string }>;
 
   // Backup & Reset
   resetAllData: () => void;
@@ -535,7 +537,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!res.ok) {
-          throw new Error(`Server returned status ${res.status}`);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server returned status ${res.status}`);
         }
 
         const data = await res.json();
@@ -552,10 +555,14 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 estimatedMinutes: Number(s.estimatedMinutes) || 4,
               }))
             : [],
+          isAiGenerated: true,
         };
       } catch (err: any) {
-        console.warn('AI Breakdown API failed, using intelligent offline fallback:', err);
-        return fallbackBreakdown(title, difficulty, notes, category);
+        const msg = err?.message || 'AI generation failed';
+        console.warn('AI Breakdown API failed, using intelligent offline fallback:', msg);
+        setAiError(msg);
+        const fb = fallbackBreakdown(title, difficulty, notes, category);
+        return { ...fb, isAiGenerated: false };
       } finally {
         setAiLoading(false);
       }
@@ -578,7 +585,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!res.ok) {
-          throw new Error(`Server returned status ${res.status}`);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server returned status ${res.status}`);
         }
 
         const data = await res.json();
@@ -593,12 +601,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   estimatedMinutes: Number(s.estimatedMinutes) || 5,
                 }))
               : undefined,
+            isAiGenerated: true,
           }));
         }
-        return fallbackBrainDump(text);
+        return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
       } catch (err: any) {
-        console.warn('AI BrainDump API failed, using offline fallback:', err);
-        return fallbackBrainDump(text);
+        const msg = err?.message || 'AI brain dump parsing failed';
+        console.warn('AI BrainDump API failed, using offline fallback:', msg);
+        setAiError(msg);
+        return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
       } finally {
         setAiLoading(false);
       }
@@ -622,7 +633,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (!res.ok) {
-          throw new Error(`Server status ${res.status}`);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server status ${res.status}`);
         }
 
         const data = await res.json();
@@ -636,16 +648,36 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 estimatedMinutes: Number(s.estimatedMinutes) || 4,
               }))
             : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
+          isAiGenerated: true,
         };
       } catch (err: any) {
-        console.warn('AI ChatEdit API failed, using offline fallback:', err);
-        return fallbackChatEdit(task, instruction);
+        const msg = err?.message || 'AI edit failed';
+        console.warn('AI ChatEdit API failed, using offline fallback:', msg);
+        setAiError(msg);
+        const fb = fallbackChatEdit(task, instruction);
+        return { ...fb, isAiGenerated: false };
       } finally {
         setAiLoading(false);
       }
     },
     [settings.context]
   );
+
+  const testAiConnection = useCallback(async () => {
+    try {
+      const res = await fetch('/api/ai/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return {
+        ok: false,
+        error: err?.message || 'Network error connecting to AI server endpoint',
+      };
+    }
+  }, []);
 
   const resetAllData = useCallback(async () => {
     const sample = getDefaultInitialTasks();
@@ -763,6 +795,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         requestBreakdown,
         requestBrainDump,
         requestChatEdit,
+        testAiConnection,
         resetAllData,
         clearAllData,
         exportDataJSON,
