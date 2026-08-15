@@ -516,7 +516,7 @@ export const SettingsView: React.FC = () => {
           Data & Local Backup
         </h2>
         <p className="text-[11px] text-stone-500">
-          Remember stores data securely in your browser. Export anytime to save a copy.
+          Remember stores data securely in your browser and Cloud Firestore. Export anytime to save a backup copy.
         </p>
 
         {importStatus && (
@@ -529,12 +529,16 @@ export const SettingsView: React.FC = () => {
           <button
             onClick={handleExport}
             className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            title="Download a complete JSON backup of your tasks and settings"
           >
             <Download className="w-3.5 h-3.5" />
             Export JSON
           </button>
 
-          <label className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
+          <label 
+            className="py-2.5 px-3 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            title="Upload and restore a previous JSON backup"
+          >
             <Upload className="w-3.5 h-3.5" />
             <span>Restore JSON</span>
             <input
@@ -547,13 +551,14 @@ export const SettingsView: React.FC = () => {
 
           <button
             onClick={() => {
-              if (window.confirm('Reset all tasks back to starter examples?')) {
+              if (window.confirm('Reset all tasks back to the starter demo tasks and default settings?')) {
                 resetAllData();
                 setImportStatus('Starter template restored.');
                 setTimeout(() => setImportStatus(null), 2500);
               }
             }}
             className="py-2.5 px-3 rounded-xl bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-stone-200/80 dark:border-stone-700/80"
+            title="Replaces current tasks with the starter sample tasks and default settings"
           >
             <RotateCcw className="w-3.5 h-3.5" />
             Reset Defaults
@@ -561,13 +566,14 @@ export const SettingsView: React.FC = () => {
 
           <button
             onClick={() => {
-              if (window.confirm('Are you sure you want to clear all tasks? This will wipe your schedule and library clean.')) {
+              if (window.confirm('Are you sure you want to clear all tasks? This will wipe your schedule, library, and cloud database clean (0 tasks).')) {
                 clearAllData();
                 setImportStatus('All tasks cleared.');
                 setTimeout(() => setImportStatus(null), 2500);
               }
             }}
             className="py-2.5 px-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-600 dark:text-rose-400 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer border border-rose-200/80 dark:border-rose-900/50"
+            title="Completely erases all tasks from local storage and cloud database"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Clear All Data

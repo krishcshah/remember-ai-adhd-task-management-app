@@ -54,21 +54,53 @@ export function getOrCreateDeviceId(): string {
 export async function syncTasksToCloud(userId: string | null, tasks: Task[]) {
   try {
     const parentPath = userId ? `users/${userId}` : `devices/${getOrCreateDeviceId()}`;
-    const batch = writeBatch(db);
+    const colRef = collection(db, `${parentPath}/tasks`);
+    const existingSnapshot = await getDocs(colRef);
     
-    // Save metadata / root doc
-    const rootRef = doc(db, parentPath);
-    batch.set(rootRef, { updatedAt: new Date().toISOString() }, { merge: true });
+    const currentTaskIds = new Set(tasks.map((t) => t.id));
+    const batch = writeBatch(db);
 
-    // Sync each task
+    // 1. Delete tasks in cloud that no longer exist locally
+    existingSnapshot.forEach((docSnap) => {
+      if (!currentTaskIds.has(docSnap.id)) {
+        batch.delete(docSnap.ref);
+      }
+    });
+
+    // 2. Set/update current tasks
     tasks.forEach((t) => {
       const taskRef = doc(db, `${parentPath}/tasks`, t.id);
       batch.set(taskRef, t, { merge: true });
     });
 
+    // 3. Save metadata / root doc
+    const rootRef = doc(db, parentPath);
+    batch.set(rootRef, { updatedAt: new Date().toISOString(), taskCount: tasks.length }, { merge: true });
+
     await batch.commit();
   } catch (err) {
     console.warn('Background cloud task sync error (offline or transient):', err);
+  }
+}
+
+export async function clearAllTasksFromCloud(userId: string | null) {
+  try {
+    const parentPath = userId ? `users/${userId}` : `devices/${getOrCreateDeviceId()}`;
+    const colRef = collection(db, `${parentPath}/tasks`);
+    const existingSnapshot = await getDocs(colRef);
+    
+    if (!existingSnapshot.empty) {
+      const batch = writeBatch(db);
+      existingSnapshot.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+    }
+
+    const rootRef = doc(db, parentPath);
+    await setDoc(rootRef, { updatedAt: new Date().toISOString(), taskCount: 0, clearedAt: new Date().toISOString() }, { merge: true });
+  } catch (err) {
+    console.warn('Cloud clear all tasks error:', err);
   }
 }
 

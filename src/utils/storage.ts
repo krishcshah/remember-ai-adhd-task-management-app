@@ -175,28 +175,48 @@ export function isTaskScheduledForDate(task: Task, dateIso: string): boolean {
   return task.scheduledDate === dateIso;
 }
 
+const INITIALIZED_FLAG_KEY = 'remember_initialized_v2';
+
 export function loadTasksFromStorage(): Task[] {
   try {
-    let raw = localStorage.getItem(TASKS_STORAGE_KEY);
-    if (!raw) {
-      raw = localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
-    }
-    if (!raw) {
+    const isInitialized = localStorage.getItem(INITIALIZED_FLAG_KEY);
+    const raw = localStorage.getItem(TASKS_STORAGE_KEY);
+    const legacyRaw = localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+
+    // If first time ever visiting the app (no initialized flag and no stored key)
+    if (!isInitialized && raw === null && legacyRaw === null) {
       const initial = getDefaultInitialTasks();
       saveTasksToStorage(initial);
+      localStorage.setItem(INITIALIZED_FLAG_KEY, 'true');
       return initial;
     }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : getDefaultInitialTasks();
+
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+
+    if (legacyRaw !== null) {
+      const parsed = JSON.parse(legacyRaw);
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
+
+    // Default fallback if storage was corrupted
+    return [];
   } catch (err) {
     console.warn('Failed to load tasks from storage:', err);
-    return getDefaultInitialTasks();
+    return [];
   }
 }
 
 export function saveTasksToStorage(tasks: Task[]) {
   try {
     localStorage.setItem(TASKS_STORAGE_KEY, JSON.stringify(tasks));
+    localStorage.setItem(INITIALIZED_FLAG_KEY, 'true');
   } catch (err) {
     console.error('Failed to save tasks:', err);
   }

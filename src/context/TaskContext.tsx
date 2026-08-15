@@ -18,6 +18,8 @@ import {
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit } from '../utils/aiFallback';
 import {
   syncTasksToCloud,
+  syncTaskDeletionToCloud,
+  clearAllTasksFromCloud,
   syncSettingsToCloud,
   syncCategoriesToCloud,
   fetchAllTasksFromCloud,
@@ -425,7 +427,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (focusTask?.id === id) {
       setFocusTask(null);
     }
-  }, [activeTaskId, focusTask, setActiveTaskId]);
+    syncTaskDeletionToCloud(user ? user.uid : null, id);
+  }, [activeTaskId, focusTask, setActiveTaskId, user]);
 
   const toggleSubtask = useCallback((taskId: string, subtaskId: string) => {
     setTasks((prev) =>
@@ -644,20 +647,36 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [settings.context]
   );
 
-  const resetAllData = useCallback(() => {
+  const resetAllData = useCallback(async () => {
     const sample = getDefaultInitialTasks();
     const defSettings = getDefaultSettings();
     setTasks(sample);
     setSettings(defSettings);
+    saveTasksToStorage(sample);
+    saveSettingsToStorage(defSettings);
     setActiveTaskId('task-1');
     setFocusTask(null);
-  }, [setActiveTaskId]);
+    try {
+      await syncTasksToCloud(user ? user.uid : null, sample);
+      await syncSettingsToCloud(user ? user.uid : null, defSettings);
+      setCloudLastSynced(new Date());
+    } catch (err) {
+      console.warn('Cloud reset error:', err);
+    }
+  }, [setActiveTaskId, user]);
 
-  const clearAllData = useCallback(() => {
+  const clearAllData = useCallback(async () => {
     setTasks([]);
+    saveTasksToStorage([]);
     setActiveTaskId(null);
     setFocusTask(null);
-  }, [setActiveTaskId]);
+    try {
+      await clearAllTasksFromCloud(user ? user.uid : null);
+      setCloudLastSynced(new Date());
+    } catch (err) {
+      console.warn('Cloud clear error:', err);
+    }
+  }, [setActiveTaskId, user]);
 
   const exportDataJSON = useCallback((): string => {
     const data = {
