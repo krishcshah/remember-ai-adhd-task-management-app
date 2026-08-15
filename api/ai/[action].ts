@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 function getApiKey(): string | null {
   const rawKey =
@@ -35,8 +35,34 @@ function parseGeminiJSON(text: string | undefined): any {
   }
 }
 
+async function callGeminiWithFallback(ai: GoogleGenAI, prompt: string, config?: any) {
+  const primaryModel = "gemini-2.5-flash";
+  const fallbackModel = "gemini-flash-latest";
+
+  try {
+    const response = await ai.models.generateContent({
+      model: primaryModel,
+      contents: prompt,
+      config,
+    });
+    return { response, modelUsed: primaryModel };
+  } catch (err: any) {
+    console.warn(`Vercel function primary model (${primaryModel}) error:`, err?.message || err);
+    try {
+      const fallbackResponse = await ai.models.generateContent({
+        model: fallbackModel,
+        contents: prompt,
+        config,
+      });
+      return { response: fallbackResponse, modelUsed: fallbackModel };
+    } catch (fallbackErr: any) {
+      throw fallbackErr || err;
+    }
+  }
+}
+
 export default async function handler(req: any, res: any) {
-  // Enable CORS for Vercel functions
+  // CORS configuration
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
@@ -53,29 +79,30 @@ export default async function handler(req: any, res: any) {
   if (!apiKey) {
     return res.status(503).json({
       ok: false,
-      error: "GEMINI_API_KEY is not configured in Vercel Environment Variables. Add GEMINI_API_KEY in Vercel Settings -> Environment Variables and redeploy.",
+      error: "GEMINI_API_KEY environment variable is not configured in Vercel. In Vercel, go to Settings -> Environment Variables, add GEMINI_API_KEY with your key value, and redeploy.",
       fallbackNeeded: true,
     });
   }
 
   const ai = new GoogleGenAI({ apiKey });
-  const action = req.query?.action || req.body?.action || "breakdown";
+  const urlPath = req.url || "";
+  const action = req.query?.action || req.body?.action || (urlPath.includes("/test") ? "test" : urlPath.includes("/braindump") ? "braindump" : urlPath.includes("/chat-edit") ? "chat-edit" : "breakdown");
 
   try {
-    if (action === "test" || req.url?.includes("/test")) {
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: 'Respond with JSON: {"status":"ready","message":"AI is active on Vercel"}',
-        config: { responseMimeType: "application/json" },
-      });
+    if (action === "test" || urlPath.includes("test")) {
+      const { response, modelUsed } = await callGeminiWithFallback(
+        ai,
+        'Respond with JSON: {"status":"ready","message":"AI is active on Vercel"}',
+        { responseMimeType: "application/json" }
+      );
       return res.status(200).json({
         ok: true,
-        model: "gemini-2.5-flash",
+        model: modelUsed,
         result: parseGeminiJSON(response.text),
       });
     }
 
-    if (action === "braindump" || req.url?.includes("/braindump")) {
+    if (action === "braindump" || urlPath.includes("braindump")) {
       const { text, context = "" } = req.body || {};
       const prompt = `You are Remember, an executive function and ADHD task assistant.
 Extract independent actionable tasks from this brain dump text.
@@ -87,25 +114,21 @@ ${text}
 """
 ${context ? `User Context: "${context}"` : ""}`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { responseMimeType: "application/json" },
+      const { response } = await callGeminiWithFallback(ai, prompt, {
+        responseMimeType: "application/json",
       });
       return res.status(200).json(parseGeminiJSON(response.text));
     }
 
-    if (action === "chat-edit" || req.url?.includes("/chat-edit")) {
+    if (action === "chat-edit" || urlPath.includes("chat-edit")) {
       const { task, instruction } = req.body || {};
       const prompt = `You are Remember, an ADHD task assistant.
 Modify this task based on instruction: "${instruction}".
 Original task: ${JSON.stringify(task)}
 Output updated JSON: { "title": string, "category": string, "estimatedMinutes": number, "subtasks": [ { "title": string, "estimatedMinutes": number } ] }`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: prompt,
-        config: { responseMimeType: "application/json" },
+      const { response } = await callGeminiWithFallback(ai, prompt, {
+        responseMimeType: "application/json",
       });
       return res.status(200).json(parseGeminiJSON(response.text));
     }
@@ -128,18 +151,18 @@ ${notes ? `Notes: "${notes}"` : ""}
 ${category ? `Category Hint: "${category}"` : ""}
 ${context ? `User Context: "${context}"` : ""}`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-      config: { responseMimeType: "application/json" },
+    const { response } = await callGeminiWithFallback(ai, prompt, {
+      responseMimeType: "application/json",
     });
 
     return res.status(200).json(parseGeminiJSON(response.text));
   } catch (err: any) {
-    console.error("Vercel Serverless AI Error:", err);
+    console.error("Vercel AI Endpoint Error:", err);
     return res.status(500).json({
       ok: false,
-      error: err.message || "Failed to generate content with Gemini API",
+      error: err?.message || "Error generating content from Gemini API",
+      statusText: err?.statusText,
+      code: err?.status || err?.code,
     });
   }
 }
