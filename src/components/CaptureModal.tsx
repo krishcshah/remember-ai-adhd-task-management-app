@@ -451,21 +451,21 @@ export const CaptureModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setDifficulty(1)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       difficulty === 1
                         ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                     }`}
                   >
-                    1 Small (3-4 micro steps)
+                    1 Small
                   </button>
                   <button
                     type="button"
                     onClick={() => setDifficulty(2)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       difficulty === 2
                         ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                     }`}
                   >
                     2 Normal
@@ -473,10 +473,10 @@ export const CaptureModal: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setDifficulty(3)}
-                    className={`flex-1 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                    className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer ${
                       difficulty === 3
                         ? 'bg-teal-800 text-white shadow-xs'
-                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900'
+                        : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-200'
                     }`}
                   >
                     3 Deep
@@ -490,16 +490,10 @@ export const CaptureModal: React.FC = () => {
                   type="button"
                   onClick={handleGenerateMagicSubtasks}
                   disabled={aiLoading || !title.trim()}
-                  className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                  className="w-full py-3 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4" />
-                  <span>
-                    {aiLoading
-                      ? 'AI is scaffolding task, emoji, & micro-steps...'
-                      : subtasks.length > 0
-                      ? '✨ Re-Magic Task & Micro-Steps'
-                      : '✨ AI Magic: Emoji, Category, Repeat & Steps'}
-                  </span>
+                  <span>{aiLoading ? 'AI Magic...' : 'AI Magic'}</span>
                 </button>
 
                 {aiEnhancedNotice && (

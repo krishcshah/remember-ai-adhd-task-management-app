@@ -111,7 +111,7 @@ export const SettingsView: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
+    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-20 space-y-6">
       {/* Header */}
       <div>
         <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
@@ -195,54 +195,60 @@ export const SettingsView: React.FC = () => {
           <div>
             <h2 className="font-display font-bold text-sm">Default Breakdown Granularity</h2>
             <p className="text-[11px] text-stone-500 dark:text-stone-400">
-              Controls how many small steps AI generates for each task (Default: Level 1)
+              Controls how many steps AI generates per task (Default: Small)
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-2 pt-1">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
           <button
             onClick={() => updateSettings({ difficulty: 1 })}
-            className={`p-3 rounded-2xl border text-left transition-all ${
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
               settings.difficulty === 1
                 ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300'
+                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
             }`}
           >
-            <div className="font-bold text-xs flex items-center justify-between">
-              <span>Level 1 • Small</span>
-              <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.2 rounded font-mono">Default</span>
-            </div>
-            <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
-              3-4 micro steps. Best for overcoming task paralysis.
+            <div>
+              <div className="font-bold text-xs flex items-center justify-between">
+                <span>1 • Small</span>
+                <span className="text-[9px] bg-teal-600/90 text-white px-1.5 py-0.5 rounded-full font-mono">Default</span>
+              </div>
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                3–4 micro-steps
+              </div>
             </div>
           </button>
 
           <button
             onClick={() => updateSettings({ difficulty: 2 })}
-            className={`p-3 rounded-2xl border text-left transition-all ${
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
               settings.difficulty === 2
                 ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300'
+                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
             }`}
           >
-            <div className="font-bold text-xs">Level 2 • Normal</div>
-            <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
-              4-6 steps. Balanced sequential flow.
+            <div>
+              <div className="font-bold text-xs">2 • Normal</div>
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                4–6 balanced steps
+              </div>
             </div>
           </button>
 
           <button
             onClick={() => updateSettings({ difficulty: 3 })}
-            className={`p-3 rounded-2xl border text-left transition-all ${
+            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
               settings.difficulty === 3
                 ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300'
+                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
             }`}
           >
-            <div className="font-bold text-xs">Level 3 • Deep</div>
-            <div className="text-[10px] text-stone-500 dark:text-stone-400 mt-1">
-              6-8 detailed steps for overwhelming projects.
+            <div>
+              <div className="font-bold text-xs">3 • Deep</div>
+              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
+                6–8 detailed steps
+              </div>
             </div>
           </button>
         </div>

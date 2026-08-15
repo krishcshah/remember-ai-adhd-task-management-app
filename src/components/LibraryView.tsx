@@ -57,7 +57,7 @@ export const LibraryView: React.FC = () => {
   });
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-4">
+    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-20 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

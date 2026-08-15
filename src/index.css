@@ -44,10 +44,19 @@
 
 /* Safe area insets for mobile standalone/PWA */
 .safe-top {
-  padding-top: max(env(safe-area-inset-top, 0px), 12px);
+  padding-top: max(env(safe-area-inset-top, 0px), 8px);
 }
 .safe-bottom {
-  padding-bottom: max(env(safe-area-inset-bottom, 0px), 16px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Pulse animation for voice recording */

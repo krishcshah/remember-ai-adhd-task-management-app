@@ -110,7 +110,7 @@ export const CalendarView: React.FC = () => {
   const completedCount = scheduledForSelected.filter((t) => t.status === 'done').length;
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
+    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-20 space-y-6">
       {/* Top Header: View Toggle & Date Header */}
       <div className="flex items-center justify-between">
         <div>
