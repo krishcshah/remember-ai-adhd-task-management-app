@@ -458,23 +458,37 @@ export const CaptureModal: React.FC = () => {
                       When?
                     </label>
                     <select
-                      value={scheduledDate || 'unscheduled'}
+                      value={!scheduledDate ? 'unscheduled' : scheduledDate === getTodayDateString() ? 'today' : 'custom'}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setScheduledDate(val === 'unscheduled' ? null : val);
+                        if (val === 'today') {
+                          setScheduledDate(getTodayDateString());
+                        } else if (val === 'unscheduled') {
+                          setScheduledDate(null);
+                        } else if (val === 'custom') {
+                          if (!scheduledDate || scheduledDate === getTodayDateString()) {
+                            const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+                            setScheduledDate(tomorrow);
+                          }
+                        }
                       }}
                       className="w-full px-3 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-xs font-medium text-stone-800 dark:text-stone-200 focus:outline-none"
                     >
-                      <option value={getTodayDateString()}>Today</option>
-                      <option
-                        value={
-                          new Date(Date.now() + 86400000).toISOString().split('T')[0]
-                        }
-                      >
-                        Tomorrow
-                      </option>
-                      <option value="unscheduled">Unscheduled (Inbox)</option>
+                      <option value="today">Today</option>
+                      <option value="custom">Select date</option>
+                      <option value="unscheduled">Unschedule</option>
                     </select>
+
+                    {Boolean(scheduledDate && scheduledDate !== getTodayDateString()) && (
+                      <div className="mt-2">
+                        <input
+                          type="date"
+                          value={scheduledDate || ''}
+                          onChange={(e) => setScheduledDate(e.target.value || null)}
+                          className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 focus:outline-none"
+                        />
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div>

@@ -447,14 +447,40 @@ export const TaskEditModal: React.FC = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
-                Scheduled Date
+                When?
               </label>
-              <input
-                type="date"
-                value={scheduledDate || ''}
-                onChange={(e) => setScheduledDate(e.target.value || null)}
-                className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs text-stone-800 dark:text-stone-200"
-              />
+              <select
+                value={!scheduledDate ? 'unscheduled' : scheduledDate === getTodayDateString() ? 'today' : 'custom'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'today') {
+                    setScheduledDate(getTodayDateString());
+                  } else if (val === 'unscheduled') {
+                    setScheduledDate(null);
+                  } else if (val === 'custom') {
+                    if (!scheduledDate || scheduledDate === getTodayDateString()) {
+                      const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+                      setScheduledDate(tomorrow);
+                    }
+                  }
+                }}
+                className="w-full px-3 py-2 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-xs font-medium text-stone-800 dark:text-stone-200 focus:outline-none"
+              >
+                <option value="today">Today</option>
+                <option value="custom">Select date</option>
+                <option value="unscheduled">Unschedule</option>
+              </select>
+
+              {Boolean(scheduledDate && scheduledDate !== getTodayDateString()) && (
+                <div className="mt-2">
+                  <input
+                    type="date"
+                    value={scheduledDate || ''}
+                    onChange={(e) => setScheduledDate(e.target.value || null)}
+                    className="w-full px-3 py-2 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-xs text-stone-800 dark:text-stone-200 focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
