@@ -9,19 +9,23 @@ export const BottomNav: React.FC = () => {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-stone-900/90 backdrop-blur-xl border-t border-stone-200/80 dark:border-stone-800 safe-bottom select-none">
       <div className="max-w-md mx-auto px-4 py-2 relative flex items-center justify-between h-14">
-        {/* Left: Schedule Tab */}
+        {/* Left: Tasks Tab */}
         <div className="flex-1 flex justify-center">
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentTab('calendar')}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer text-teal-800 dark:text-teal-300 font-semibold text-xs whitespace-nowrap ${
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
               currentTab === 'calendar'
-                ? 'bg-teal-50 dark:bg-teal-950/60'
-                : 'hover:bg-teal-50/50 dark:hover:bg-teal-950/30'
+                ? 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100/60 dark:hover:bg-stone-800/40'
             }`}
           >
-            <CheckSquare className="w-4.5 h-4.5 stroke-[2.2px] shrink-0 text-teal-800 dark:text-teal-300" />
-            <span>Schedule</span>
+            <CheckSquare className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
+              currentTab === 'calendar'
+                ? 'text-stone-800 dark:text-stone-200'
+                : 'text-stone-500 dark:text-stone-400'
+            }`} />
+            <span>Tasks</span>
           </motion.button>
         </div>
 
@@ -45,11 +49,15 @@ export const BottomNav: React.FC = () => {
             onClick={() => setCurrentTab('settings')}
             className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
               currentTab === 'settings'
-                ? 'bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300'
-                : 'text-stone-500 dark:text-stone-400 hover:text-teal-800 dark:hover:text-teal-300'
+                ? 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200'
+                : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100/60 dark:hover:bg-stone-800/40'
             }`}
           >
-            <Sparkles className="w-4.5 h-4.5 stroke-[2.2px] shrink-0 text-teal-800 dark:text-teal-300" />
+            <Sparkles className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
+              currentTab === 'settings'
+                ? 'text-stone-800 dark:text-stone-200'
+                : 'text-stone-500 dark:text-stone-400'
+            }`} />
             <span>You</span>
           </motion.button>
         </div>

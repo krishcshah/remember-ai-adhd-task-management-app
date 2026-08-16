@@ -441,11 +441,43 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [activeTaskId, setActiveTaskId, user]);
 
   const addMultipleTasks = useCallback((tasksData: Omit<Task, 'id' | 'createdAt'>[]): Task[] => {
-    const newTasks = tasksData.map((td, idx) => ({
-      ...td,
-      id: 'task-' + (Date.now() + idx) + '-' + Math.random().toString(36).substr(2, 4),
-      createdAt: new Date().toISOString(),
-    }));
+    if (!Array.isArray(tasksData) || tasksData.length === 0) return [];
+    
+    const now = Date.now();
+    const newTasks: Task[] = tasksData
+      .filter((td) => td && typeof td === 'object' && String(td.title || '').trim().length > 0)
+      .map((td, idx) => {
+        const cleanTitle = String(td.title || '').trim();
+        const validCategory = (td.category as TaskCategory) || 'other';
+        const validEstMins = Math.max(1, Number(td.estMinutes) || 15);
+        const validSubtasks = Array.isArray(td.subtasks)
+          ? td.subtasks.map((st, sidx) => ({
+              id: st.id || `sub-${now}-${idx}-${sidx}`,
+              title: String(st.title || `Step ${sidx + 1}`),
+              estMinutes: Math.max(1, Number(st.estMinutes) || 5),
+              done: Boolean(st.done),
+            }))
+          : [];
+
+        return {
+          id: 'task-' + (now + idx) + '-' + Math.random().toString(36).substr(2, 5),
+          title: cleanTitle,
+          category: validCategory,
+          estMinutes: validEstMins,
+          subtasks: validSubtasks,
+          scheduledDate: td.scheduledDate || null,
+          scheduledTime: td.scheduledTime || null,
+          status: 'todo' as const,
+          repeatDaily: Boolean(td.repeatDaily),
+          repeatType: td.repeatType || (td.repeatDaily ? 'daily' : 'none'),
+          repeatDays: Array.isArray(td.repeatDays) ? td.repeatDays : undefined,
+          notes: td.notes || undefined,
+          createdAt: new Date().toISOString(),
+        };
+      });
+
+    if (newTasks.length === 0) return [];
+
     setTasks((prev) => {
       const next = sortTasksLogically([...newTasks, ...prev]);
       saveTasksToStorage(next);

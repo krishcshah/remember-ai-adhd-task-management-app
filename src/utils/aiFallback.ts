@@ -232,33 +232,53 @@ export function fallbackBrainDump(text: string): {
   estimatedMinutes: number;
   subtasks?: { title: string; estimatedMinutes: number }[];
 }[] {
-  // Split on newlines, bullet points, numbers, or semicolons
-  const lines = text
-    .split(/\n+|;|\band then\b|\balso\b|•|-|\d+\.\s+/i)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 2 && !/^(and|also|then|um|uh|like)$/i.test(l));
-
-  if (lines.length === 0) {
+  if (!text || typeof text !== 'string') {
     return [
       {
-        title: text.slice(0, 40) || 'Quick brainstormed task',
-        category: detectCategory(text),
-        estimatedMinutes: 20,
+        title: 'Quick brainstormed task',
+        category: 'other',
+        estimatedMinutes: 15,
+        subtasks: [
+          { title: 'Start first step', estimatedMinutes: 5 },
+          { title: 'Wrap up task', estimatedMinutes: 10 },
+        ],
       },
     ];
   }
 
-  return lines.map((line) => {
+  // Split on newlines, bullet points, numbers, or semicolons
+  const rawSegments = text.split(/\r?\n+|;|\band then\b|\balso\b|•|–|—|\*|\d+[\.\)]\s+/i);
+  const cleanLines = rawSegments
+    .map((l) => l.trim())
+    .filter((l) => l.length > 1 && !/^(and|also|then|um|uh|like|so|plus|next)$/i.test(l));
+
+  if (cleanLines.length === 0) {
+    const fallbackTitle = text.trim().slice(0, 45) || 'Quick brainstormed task';
+    return [
+      {
+        title: fallbackTitle,
+        category: detectCategory(text),
+        estimatedMinutes: 20,
+        subtasks: [
+          { title: `Begin first step of ${fallbackTitle.slice(0, 25)}`, estimatedMinutes: 5 },
+          { title: `Finish and check ${fallbackTitle.slice(0, 25)}`, estimatedMinutes: 10 },
+        ],
+      },
+    ];
+  }
+
+  return cleanLines.map((line) => {
     // Clean leading verbs or punctuation
-    const title = line.replace(/^[,\.\-\s]+/, '');
+    const title = line.replace(/^[\s,.\-•–—*#\d\)]+/, '').trim() || line.trim();
     const category = detectCategory(title);
+    const shortTitle = title.length > 70 ? title.slice(0, 67) + '...' : title;
     return {
-      title: title.length > 60 ? title.slice(0, 57) + '...' : title,
-      category,
+      title: shortTitle,
+      category: category || 'other',
       estimatedMinutes: 15,
       subtasks: [
-        { title: `Start first step of ${title.slice(0, 30)}`, estimatedMinutes: 5 },
-        { title: `Complete ${title.slice(0, 30)}`, estimatedMinutes: 10 },
+        { title: `Start first step of ${shortTitle.slice(0, 30)}`, estimatedMinutes: 5 },
+        { title: `Complete ${shortTitle.slice(0, 30)}`, estimatedMinutes: 10 },
       ],
     };
   });

@@ -198,37 +198,53 @@ export const CaptureModal: React.FC = () => {
     closeCapture();
   };
 
+  const [brainDumpError, setBrainDumpError] = useState<string | null>(null);
+
   // Run AI Brain Dump Extraction
   const handleExtractBrainDump = async () => {
-    if (!brainDumpText.trim()) return;
+    const raw = brainDumpText.trim();
+    if (!raw) return;
+    setBrainDumpError(null);
     try {
-      const extracted = await requestBrainDump(brainDumpText);
-      setExtractedTasks(extracted);
-    } catch (e) {
-      console.error(e);
+      const extracted = await requestBrainDump(raw);
+      if (Array.isArray(extracted) && extracted.length > 0) {
+        setExtractedTasks(extracted);
+      } else {
+        setBrainDumpError('Could not find actionable items. Try adding bullet points or new lines.');
+      }
+    } catch (e: any) {
+      console.error('Brain dump error:', e);
+      setBrainDumpError(e?.message || 'Failed to extract tasks. Please try again.');
     }
   };
 
   // Save Extracted Brain Dump tasks
   const handleSaveExtractedTasks = (targetDate: string | null) => {
-    if (extractedTasks.length === 0) return;
+    if (!extractedTasks || extractedTasks.length === 0) return;
 
-    const payload = extractedTasks.map((t, idx) => ({
-      title: t.title,
-      category: t.category,
-      estMinutes: t.estimatedMinutes,
-      scheduledDate: targetDate,
-      scheduledTime: null,
-      status: 'todo' as const,
-      subtasks: (t.subtasks || []).map((st, sidx) => ({
-        id: `b-sub-${Date.now()}-${idx}-${sidx}`,
-        title: st.title,
-        estMinutes: st.estimatedMinutes,
-        done: false,
-      })),
-    }));
+    const now = Date.now();
+    const payload = extractedTasks
+      .filter((t) => t && typeof t === 'object' && String(t.title || '').trim().length > 0)
+      .map((t, idx) => ({
+        title: String(t.title).trim(),
+        category: (t.category as TaskCategory) || 'other',
+        estMinutes: Math.max(1, Number(t.estimatedMinutes) || 15),
+        scheduledDate: targetDate,
+        scheduledTime: null,
+        status: 'todo' as const,
+        subtasks: Array.isArray(t.subtasks)
+          ? t.subtasks.map((st, sidx) => ({
+              id: `b-sub-${now}-${idx}-${sidx}`,
+              title: String(st?.title || `Step ${sidx + 1}`),
+              estMinutes: Math.max(1, Number(st?.estimatedMinutes) || 5),
+              done: false,
+            }))
+          : [],
+      }));
 
-    addMultipleTasks(payload);
+    if (payload.length > 0) {
+      addMultipleTasks(payload);
+    }
     closeCapture();
   };
 
@@ -663,13 +679,19 @@ export const CaptureModal: React.FC = () => {
                 />
               </div>
 
+              {brainDumpError && (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300">
+                  {brainDumpError}
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleExtractBrainDump}
                 disabled={aiLoading || !brainDumpText.trim()}
-                className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                className="w-full py-3.5 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-stone-950 font-display font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
               >
-                <Sparkles className="w-4 h-4" />
+                <Sparkles className={`w-4 h-4 ${aiLoading ? 'animate-spin' : ''}`} />
                 <span>
                   {aiLoading ? 'AI is sorting & organizing...' : 'Organize into Tasks with AI'}
                 </span>

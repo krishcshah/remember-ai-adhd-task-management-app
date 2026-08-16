@@ -16,6 +16,7 @@ import { TaskEditModal } from './components/TaskEditModal';
 import { RepeatModal } from './components/RepeatModal';
 import { AddCategoryModal } from './components/AddCategoryModal';
 import { FocusTimerOverlay } from './components/FocusTimerOverlay';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { WifiOff } from 'lucide-react';
 
 const MainLayout: React.FC = () => {
@@ -116,8 +117,10 @@ const MainLayout: React.FC = () => {
 
 export default function App() {
   return (
-    <TaskProvider>
-      <MainLayout />
-    </TaskProvider>
+    <ErrorBoundary>
+      <TaskProvider>
+        <MainLayout />
+      </TaskProvider>
+    </ErrorBoundary>
   );
 }
