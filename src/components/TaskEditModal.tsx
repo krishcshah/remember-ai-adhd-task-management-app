@@ -102,7 +102,57 @@ export const TaskEditModal: React.FC = () => {
     if (!editingTask || !title.trim() || isMagicSaving) return;
     setIsMagicSaving(true);
 
-    let finalTitle = title.trim();
+    const cleanTitle = title.trim();
+    const cleanNotes = notes.trim();
+    const isDaily = repeatType === 'daily';
+    const cleanDate = isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate;
+    const cleanTime = scheduledTime.trim() || null;
+    const cleanRepeatDays = repeatType === 'weekly_on' ? repeatDays : undefined;
+
+    // Check if the change is just metadata (category, date, time, pattern/repeat) or small manual edits
+    const origTitle = (editingTask.title || '').trim();
+    const origCategory = editingTask.category;
+    const origDate = editingTask.scheduledDate || null;
+    const origTime = (editingTask.scheduledTime || '').trim() || null;
+    const origRepeatType = editingTask.repeatType || (editingTask.repeatDaily ? 'daily' : 'none');
+    const origNotes = (editingTask.notes || '').trim();
+    const origSubtasksCount = (editingTask.subtasks || []).length;
+
+    const isTitleUnchanged = cleanTitle.toLowerCase() === origTitle.toLowerCase();
+    const hasExistingSubtasks = subtasks.length > 0;
+
+    // If title didn't change significantly, or user only tweaked date/time/repeat/category/duration or manual steps, skip AI call
+    const isSmallOrMetadataEdit =
+      isTitleUnchanged ||
+      (hasExistingSubtasks && subtasks.length === origSubtasksCount) ||
+      (cleanTitle.length > 0 && Math.abs(cleanTitle.length - origTitle.length) < 4);
+
+    if (isSmallOrMetadataEdit) {
+      // Perform direct instant save without AI latency or unexpected overrides
+      updateTask(editingTask.id, {
+        title: cleanTitle,
+        category: category,
+        scheduledDate: cleanDate,
+        scheduledTime: cleanTime,
+        repeatDaily: isDaily,
+        repeatType: repeatType,
+        repeatDays: cleanRepeatDays,
+        notes: cleanNotes || undefined,
+        estMinutes: estMinutes || 20,
+        subtasks: subtasks.map((s, idx) => ({
+          id: s.id || `sub-${Date.now()}-${idx}`,
+          title: s.title && s.title !== 'undefined' ? s.title : `Action step ${idx + 1}`,
+          estMinutes: Number(s.estMinutes) || 5,
+          done: Boolean(s.done),
+        })),
+      });
+
+      setIsMagicSaving(false);
+      closeEdit();
+      return;
+    }
+
+    let finalTitle = cleanTitle;
     let finalCategory = category;
     let finalEstMinutes = estMinutes || 20;
     let finalRepeatType = repeatType;
@@ -140,17 +190,17 @@ export const TaskEditModal: React.FC = () => {
       console.warn('AI breakdown fallback in EditModal:', err);
     }
 
-    const isDaily = finalRepeatType === 'daily';
+    const isFinalDaily = finalRepeatType === 'daily';
 
     updateTask(editingTask.id, {
       title: finalTitle,
       category: finalCategory,
-      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
-      scheduledTime: scheduledTime.trim() || null,
-      repeatDaily: isDaily,
+      scheduledDate: isFinalDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
+      scheduledTime: cleanTime,
+      repeatDaily: isFinalDaily,
       repeatType: finalRepeatType,
       repeatDays: finalRepeatType === 'weekly_on' ? finalRepeatDays : undefined,
-      notes: notes.trim() || undefined,
+      notes: cleanNotes || undefined,
       estMinutes: finalEstMinutes,
       subtasks: finalSubtasks.map((s, idx) => ({
         id: s.id || `sub-${Date.now()}-${idx}`,

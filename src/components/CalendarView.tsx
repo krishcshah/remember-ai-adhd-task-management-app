@@ -187,7 +187,6 @@ export const CalendarView: React.FC = () => {
           aria-label="Brain Dump"
         >
           <Paperclip className="w-5 h-5 rotate-45" />
-          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400 border border-white dark:border-stone-900" />
         </motion.button>
 
         {/* Center: Selected Date & View Switcher */}
@@ -204,16 +203,16 @@ export const CalendarView: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: You (Profile & Settings) with attractive badge */}
+        {/* Right: You (Profile & Settings) without yellow tint */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           whileHover={{ scale: 1.06 }}
           onClick={() => setCurrentTab('settings')}
-          className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-800 to-teal-600 dark:from-teal-700 dark:to-teal-500 text-amber-300 shadow-xs hover:shadow-md transition-all cursor-pointer border border-teal-600/50"
+          className="flex items-center justify-center w-9 h-9 rounded-xl bg-teal-800 dark:bg-teal-700 text-teal-50 shadow-xs hover:shadow-md transition-all cursor-pointer border border-teal-700/60 dark:border-teal-600/60"
           title="Open You"
           aria-label="You"
         >
-          <Sparkles className="w-4.5 h-4.5" />
+          <Sparkles className="w-4.5 h-4.5 text-teal-100 dark:text-teal-100" />
         </motion.button>
       </div>
 
