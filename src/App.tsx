@@ -16,6 +16,7 @@ import { TaskEditModal } from './components/TaskEditModal';
 import { RepeatModal } from './components/RepeatModal';
 import { AddCategoryModal } from './components/AddCategoryModal';
 import { FocusTimerOverlay } from './components/FocusTimerOverlay';
+import { TaskReminderBanner } from './components/TaskReminderBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { WifiOff } from 'lucide-react';
 
@@ -111,6 +112,9 @@ const MainLayout: React.FC = () => {
       <AnimatePresence>
         {focusTask && <FocusTimerOverlay task={focusTask} onClose={stopFocus} />}
       </AnimatePresence>
+
+      {/* Timed Task Live Notification Banner */}
+      <TaskReminderBanner />
     </div>
   );
 };

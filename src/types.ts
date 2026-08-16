@@ -33,6 +33,8 @@ export interface Settings {
   difficulty: 1 | 2 | 3; // 1: bite-size (default) | 2: normal | 3: deep steps
   autoRolloverPending?: boolean; // Automatically roll over uncompleted tasks from past days to Today
   customCategories?: CategoryMeta[];
+  notificationsEnabled?: boolean; // Enable time-based task notifications (default true)
+  notificationSound?: boolean; // Play gentle audio chime (default true)
 }
 
 export type ActiveTab = 'now' | 'calendar' | 'library' | 'settings';

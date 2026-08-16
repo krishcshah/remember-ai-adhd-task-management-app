@@ -37,6 +37,7 @@ import {
   googleProvider,
 } from '../lib/firebase';
 import { signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
+import { playNotificationSound, triggerSystemNotification } from '../utils/notifications';
 
 interface TaskContextType {
   tasks: Task[];
@@ -95,6 +96,12 @@ interface TaskContextType {
   // Category Management
   addCategory: (label: string, paletteId?: string) => CategoryMeta;
   deleteCategory: (id: string) => void;
+
+  // Reminders & Notifications
+  activeReminders: Task[];
+  dismissReminder: (taskId: string) => void;
+  snoozeReminder: (taskId: string, minutes?: number) => void;
+  testNotificationChime: () => void;
 
   // AI Operations
   requestBreakdown: (
@@ -162,6 +169,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isRepeatOpen, setIsRepeatOpen] = useState(false);
   const [repeatTargetTask, setRepeatTargetTask] = useState<Task | null>(null);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+
+  // Active Timed Task Reminders
+  const [activeReminders, setActiveReminders] = useState<Task[]>([]);
+  const firedRemindersRef = useRef<Set<string>>(new Set());
+  const snoozedRemindersRef = useRef<Map<string, number>>(new Map());
 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -423,6 +435,124 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const stopFocus = useCallback(() => {
     setFocusTask(null);
   }, []);
+
+  const dismissReminder = useCallback((taskId: string) => {
+    setActiveReminders((prev) => prev.filter((t) => t.id !== taskId));
+    snoozedRemindersRef.current.delete(taskId);
+  }, []);
+
+  const snoozeReminder = useCallback((taskId: string, minutes: number = 5) => {
+    setActiveReminders((prev) => prev.filter((t) => t.id !== taskId));
+    snoozedRemindersRef.current.set(taskId, Date.now() + minutes * 60 * 1000);
+  }, []);
+
+  const testNotificationChime = useCallback(() => {
+    if (settings.notificationSound !== false) {
+      playNotificationSound();
+    }
+    const now = new Date();
+    const currentHours = String(now.getHours()).padStart(2, '0');
+    const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+    const sampleReminderTask: Task = {
+      id: `test-reminder-${Date.now()}`,
+      title: '⏰ Test Task Reminder Notification',
+      category: 'personal',
+      estMinutes: 15,
+      scheduledDate: getTodayDateString(),
+      scheduledTime: `${currentHours}:${currentMinutes}`,
+      status: 'todo',
+      createdAt: new Date().toISOString(),
+      subtasks: [
+        { id: 'test-s1', title: 'Task reminders and chime active', estMinutes: 5, done: false },
+      ],
+    };
+    setActiveReminders((prev) => [sampleReminderTask, ...prev.filter((t) => !t.id.startsWith('test-reminder'))]);
+    triggerSystemNotification(sampleReminderTask, {
+      onClick: () => {
+        startFocus(sampleReminderTask);
+      },
+    });
+  }, [settings.notificationSound, startFocus]);
+
+  // Scheduler effect: checks for timed tasks arriving
+  useEffect(() => {
+    if (settings.notificationsEnabled === false) return;
+
+    const checkDueTasks = () => {
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTimeStr = `${currentHours}:${currentMinutes}`;
+      const todayDateStr = getTodayDateString();
+      const currentDayOfWeek = now.getDay();
+      const currentEpoch = now.getTime();
+
+      const newlyDueTasks: Task[] = [];
+
+      tasks.forEach((task) => {
+        if (task.status === 'done' || !task.scheduledTime) return;
+
+        // Check if task is scheduled for today
+        const isDaily = task.repeatDaily || task.repeatType === 'daily';
+        const isWeeklyToday =
+          task.repeatType === 'weekly_on' &&
+          Array.isArray(task.repeatDays) &&
+          task.repeatDays.includes(currentDayOfWeek);
+        const isToday = task.scheduledDate === todayDateStr || isDaily || isWeeklyToday;
+
+        if (!isToday) return;
+
+        const reminderKey = `${task.id}_${todayDateStr}_${task.scheduledTime}`;
+        const isSnoozedDue =
+          snoozedRemindersRef.current.has(task.id) &&
+          currentEpoch >= (snoozedRemindersRef.current.get(task.id) || Infinity);
+        const isExactTimeDue =
+          task.scheduledTime === currentTimeStr && !firedRemindersRef.current.has(reminderKey);
+
+        if (isExactTimeDue || isSnoozedDue) {
+          firedRemindersRef.current.add(reminderKey);
+          snoozedRemindersRef.current.delete(task.id);
+          newlyDueTasks.push(task);
+        }
+      });
+
+      if (newlyDueTasks.length > 0) {
+        if (settings.notificationSound !== false) {
+          playNotificationSound();
+        }
+
+        newlyDueTasks.forEach((t) => {
+          triggerSystemNotification(t, {
+            onClick: () => {
+              startFocus(t);
+            },
+          });
+        });
+
+        setActiveReminders((prev) => {
+          const existingIds = new Set(prev.map((t) => t.id));
+          const toAdd = newlyDueTasks.filter((t) => !existingIds.has(t.id));
+          return [...toAdd, ...prev];
+        });
+      }
+    };
+
+    checkDueTasks();
+    const interval = setInterval(checkDueTasks, 4000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkDueTasks();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [tasks, settings.notificationsEnabled, settings.notificationSound, startFocus]);
 
   const addTask = useCallback((taskData: Omit<Task, 'id' | 'createdAt'>): Task => {
     const newTask: Task = {
@@ -1015,6 +1145,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateSettings,
         addCategory,
         deleteCategory,
+        activeReminders,
+        dismissReminder,
+        snoozeReminder,
+        testNotificationChime,
         requestBreakdown,
         requestBrainDump,
         requestChatEdit,

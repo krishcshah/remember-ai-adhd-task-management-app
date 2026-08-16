@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
+import { getNotificationPermissionStatus, requestNotificationPermission } from '../utils/notifications';
 import {
   Sparkles,
   Moon,
@@ -27,6 +28,11 @@ import {
   User,
   Brain,
   Sliders,
+  Bell,
+  Volume2,
+  VolumeX,
+  Clock,
+  Play,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -49,12 +55,26 @@ export const SettingsView: React.FC = () => {
     exportDataJSON,
     importDataJSON,
     setCurrentTab,
+    testNotificationChime,
   } = useTaskContext();
 
   const [contextInput, setContextInput] = useState(settings.context);
   const [copied, setCopied] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+  const [permStatus, setPermStatus] = useState(getNotificationPermissionStatus());
+  const [testedChime, setTestedChime] = useState(false);
+
+  const handleRequestPermission = async () => {
+    const res = await requestNotificationPermission();
+    setPermStatus(res);
+  };
+
+  const handleTestChime = () => {
+    testNotificationChime();
+    setTestedChime(true);
+    setTimeout(() => setTestedChime(false), 2500);
+  };
 
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
@@ -304,6 +324,146 @@ export const SettingsView: React.FC = () => {
           >
             <Monitor className="w-4 h-4 text-stone-500" /> System
           </button>
+        </div>
+      </div>
+
+      {/* Task Time Notifications & Reminders */}
+      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3.5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
+            <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
+              <Bell className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="font-display font-bold text-sm">Notifications & Reminders</h2>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400">
+                Alerts when timed tasks are due
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleTestChime}
+            className="px-3 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-semibold flex items-center gap-1.5 transition-colors active:scale-95"
+            title="Play sample chime and trigger test alert"
+          >
+            {testedChime ? <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" /> : <Play className="w-3.5 h-3.5" />}
+            <span>{testedChime ? 'Chime Played!' : 'Test Reminder'}</span>
+          </button>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          {/* Main Notification Toggle */}
+          <div className="p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                  Timed Task Reminders
+                </p>
+                <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                  Notify you at the exact scheduled time
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="toggle-notifications-btn"
+              onClick={() =>
+                updateSettings({
+                  notificationsEnabled: settings.notificationsEnabled === false ? true : false,
+                })
+              }
+              className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
+                settings.notificationsEnabled !== false ? 'bg-teal-600' : 'bg-stone-300 dark:bg-stone-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.notificationsEnabled !== false ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Sound / Chime Toggle */}
+          <div className="p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
+                {settings.notificationSound !== false ? (
+                  <Volume2 className="w-4 h-4" />
+                ) : (
+                  <VolumeX className="w-4 h-4" />
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                  Gentle Audio Chime
+                </p>
+                <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                  ADHD-friendly harmonic bell sound on due time
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="toggle-sound-btn"
+              onClick={() =>
+                updateSettings({
+                  notificationSound: settings.notificationSound === false ? true : false,
+                })
+              }
+              className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${
+                settings.notificationSound !== false ? 'bg-teal-600' : 'bg-stone-300 dark:bg-stone-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  settings.notificationSound !== false ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Browser System Permission Status */}
+          <div className="p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-stone-800 dark:text-stone-200">
+                System Desktop & Mobile Push
+              </p>
+              <p className="text-[10px] text-stone-500 dark:text-stone-400">
+                {permStatus === 'granted'
+                  ? 'System notifications active when tab is backgrounded'
+                  : permStatus === 'denied'
+                  ? 'Browser notifications blocked (in-app banner will still alert you)'
+                  : 'Receive notifications even if app is in background or closed'}
+              </p>
+            </div>
+
+            {permStatus === 'granted' ? (
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-1 rounded-xl">
+                <Check className="w-3.5 h-3.5" />
+                Active
+              </span>
+            ) : permStatus === 'denied' ? (
+              <span className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 bg-stone-100 dark:bg-stone-800 px-2.5 py-1 rounded-xl">
+                Blocked
+              </span>
+            ) : (
+              <button
+                id="enable-browser-notifications-btn"
+                type="button"
+                onClick={handleRequestPermission}
+                className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors shrink-0"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                Enable Push
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

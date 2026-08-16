@@ -21,6 +21,8 @@ export function getDefaultSettings(): Settings {
     theme: 'light',
     difficulty: 1, // Default to Small / Bite-size granularity everywhere
     autoRolloverPending: true, // Auto rollover uncompleted tasks to Today
+    notificationsEnabled: true,
+    notificationSound: true,
   };
 }
 
