@@ -6,7 +6,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { TaskProvider, useTaskContext } from './context/TaskContext';
-import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
 import { NowView } from './components/NowView';
 import { CalendarView } from './components/CalendarView';
@@ -55,16 +54,13 @@ const MainLayout: React.FC = () => {
             className="overflow-hidden bg-amber-500 text-stone-950 px-4 py-1.5 text-xs font-semibold text-center flex items-center justify-center gap-1.5 shadow-sm"
           >
             <WifiOff className="w-3.5 h-3.5" />
-            <span>Offline mode active • Local task planner & offline heuristics running</span>
+            <span>Offline mode active • Local task planner running</span>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* App Header */}
-      <Header />
-
       {/* Main Content Area with Smooth View Transitions */}
-      <main className="flex-1 flex flex-col w-full max-w-xl mx-auto overflow-x-hidden">
+      <main className="flex-1 flex flex-col w-full max-w-xl mx-auto overflow-x-hidden pt-3 sm:pt-4">
         <AnimatePresence mode="wait">
           {currentTab === 'now' && (
             <motion.div

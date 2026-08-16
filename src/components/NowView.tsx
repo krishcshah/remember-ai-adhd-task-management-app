@@ -6,19 +6,15 @@ import {
   Play,
   CheckCircle2,
   Circle,
-  Sparkles,
   ChevronRight,
   ChevronLeft,
   Clock,
   Pencil,
   Plus,
   Compass,
-  Wand2,
   Check,
   Repeat,
-  Zap,
-  Scissors,
-  MessageSquareText,
+  Sparkles,
 } from 'lucide-react';
 import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
 
@@ -34,16 +30,9 @@ export const NowView: React.FC = () => {
     openEdit,
     openCapture,
     openRepeatModal,
-    requestChatEdit,
-    requestBreakdown,
-    updateTask,
-    aiLoading,
   } = useTaskContext();
 
   const [isUpNextExpanded, setIsUpNextExpanded] = useState(false);
-  const [quickAiPrompt, setQuickAiPrompt] = useState('');
-  const [showCustomPromptBox, setShowCustomPromptBox] = useState(false);
-  const [tweakingAction, setTweakingAction] = useState<string | null>(null);
 
   const todayStr = getTodayDateString();
   const todayTasks = tasks.filter(
@@ -66,84 +55,6 @@ export const NowView: React.FC = () => {
     if (todayTasks.length <= 1) return;
     const prevIdx = (currentIndex - 1 + todayTasks.length) % todayTasks.length;
     setActiveTaskId(todayTasks[prevIdx].id);
-  };
-
-  // AI Tweaker: 1. Custom prompt tweak
-  const handleApplyCustomAiTweak = async (promptText: string) => {
-    if (!activeTask || !promptText.trim()) return;
-    setTweakingAction('custom');
-    try {
-      const updated = await requestChatEdit(activeTask, promptText);
-      updateTask(activeTask.id, {
-        title: updated.title,
-        category: updated.category,
-        estMinutes: updated.estimatedMinutes,
-        subtasks: updated.subtasks.map((s, idx) => ({
-          id: `sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        })),
-      });
-      setShowCustomPromptBox(false);
-      setQuickAiPrompt('');
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTweakingAction(null);
-    }
-  };
-
-  // AI Tweaker: 2. Instant Bite-Sized Breakdown
-  const handleApplyBiteSizedTweak = async () => {
-    if (!activeTask) return;
-    setTweakingAction('bitesize');
-    try {
-      const updated = await requestBreakdown(
-        activeTask.title,
-        1, // 1 = Bite-sized granularity
-        activeTask.notes,
-        activeTask.category
-      );
-      updateTask(activeTask.id, {
-        estMinutes: updated.estimatedMinutes,
-        subtasks: updated.subtasks.map((s, idx) => ({
-          id: `sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        })),
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTweakingAction(null);
-    }
-  };
-
-  // AI Tweaker: 3. Instant Faster / Over-estimated Time Trimmer
-  const handleApplyFasterTweak = async () => {
-    if (!activeTask) return;
-    setTweakingAction('faster');
-    try {
-      const updated = await requestChatEdit(
-        activeTask,
-        'Reduce total time significantly because it was over-estimated, tighten and streamline all steps to be completed much faster'
-      );
-      updateTask(activeTask.id, {
-        estMinutes: updated.estimatedMinutes,
-        subtasks: updated.subtasks.map((s, idx) => ({
-          id: `sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        })),
-      });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setTweakingAction(null);
-    }
   };
 
   // If no active task
@@ -377,20 +288,10 @@ export const NowView: React.FC = () => {
                 ))}
 
                 {activeTask.subtasks.length === 0 && (
-                  <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-900/40 text-center">
-                    <p className="text-xs text-amber-900 dark:text-amber-300 mb-2">
-                      No subtasks broken down yet.
+                  <div className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/50 border border-stone-200/60 dark:border-stone-700/60 text-center">
+                    <p className="text-xs text-stone-600 dark:text-stone-400">
+                      Single-focus task. Tap start timer below or mark done when completed.
                     </p>
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={handleApplyBiteSizedTweak}
-                      disabled={aiLoading}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs transition-colors shadow-sm cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      {aiLoading ? 'Thinking...' : 'Generate Bite-Sized Steps'}
-                    </motion.button>
                   </div>
                 )}
               </div>
@@ -403,117 +304,6 @@ export const NowView: React.FC = () => {
                   </span>
                 </div>
               )}
-            </div>
-
-            {/* 3 AI TWEAKER BUTTONS SECTION */}
-            <div className="mt-4 pt-3 border-t border-stone-100 dark:border-stone-800 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-stone-500 dark:text-stone-400 uppercase tracking-wider flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-500" />
-                  AI Tweakers
-                </span>
-                {aiLoading && (
-                  <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 animate-pulse">
-                    AI is updating...
-                  </span>
-                )}
-              </div>
-
-              {/* 3 AI Action Buttons */}
-              <div className="grid grid-cols-3 gap-2">
-                {/* Button 1: Custom AI Tweak */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  onClick={() => setShowCustomPromptBox(!showCustomPromptBox)}
-                  disabled={aiLoading}
-                  className={`py-2 px-2.5 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    showCustomPromptBox
-                      ? 'bg-amber-100 dark:bg-amber-950/80 border-amber-400 text-amber-950 dark:text-amber-200 ring-2 ring-amber-400/20'
-                      : 'bg-stone-50 dark:bg-stone-800/80 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900'
-                  }`}
-                >
-                  <MessageSquareText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span className="truncate">AI Tweak</span>
-                </motion.button>
-
-                {/* Button 2: Instant Bite-Sized */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  onClick={handleApplyBiteSizedTweak}
-                  disabled={aiLoading}
-                  className="py-2 px-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 hover:text-teal-900 dark:hover:text-teal-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
-                  <span className="truncate">Bite-Sized</span>
-                </motion.button>
-
-                {/* Button 3: Instant Faster */}
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  onClick={handleApplyFasterTweak}
-                  disabled={aiLoading}
-                  className="py-2 px-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 hover:text-amber-900 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  <span className="truncate">Faster</span>
-                </motion.button>
-              </div>
-
-              {/* Custom AI Tweak Text Box (Toggled by Button 1) */}
-              <AnimatePresence>
-                {showCustomPromptBox && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0, y: -8 }}
-                    animate={{ opacity: 1, height: 'auto', y: 0 }}
-                    exit={{ opacity: 0, height: 0, y: -8 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="p-2.5 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800/80 space-y-2">
-                      <div className="flex items-center justify-between text-[11px] text-amber-900 dark:text-amber-300 font-semibold px-1">
-                        <span>Describe how you want AI to adjust this task:</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowCustomPromptBox(false)}
-                          className="text-stone-400 hover:text-stone-700 text-xs cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          placeholder="e.g. split step 2, add step for emailing Sarah, make 10m..."
-                          value={quickAiPrompt}
-                          onChange={(e) => setQuickAiPrompt(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleApplyCustomAiTweak(quickAiPrompt);
-                          }}
-                          autoFocus
-                          className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-amber-300 dark:border-amber-800 text-stone-800 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                        />
-                        <motion.button
-                          whileHover={{ scale: 1.03 }}
-                          whileTap={{ scale: 0.95 }}
-                          type="button"
-                          onClick={() => handleApplyCustomAiTweak(quickAiPrompt)}
-                          disabled={aiLoading || !quickAiPrompt.trim()}
-                          className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 font-bold text-xs flex items-center gap-1 transition-all disabled:opacity-50 cursor-pointer"
-                        >
-                          <Wand2 className="w-3.5 h-3.5" />
-                          <span>Apply</span>
-                        </motion.button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </div>
 

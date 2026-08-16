@@ -14,6 +14,7 @@ import {
   getDefaultSettings,
   isTaskScheduledForDate,
   rollOverPastPendingTasks,
+  sortTasksLogically,
 } from '../utils/storage';
 import { fallbackBreakdown, fallbackBrainDump, fallbackChatEdit, normalizeAiSubtasks } from '../utils/aiFallback';
 import {
@@ -168,17 +169,38 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        // Fetch cloud data and merge if available
+        // Fetch cloud data and merge without overwriting local changes
         setIsCloudSyncing(true);
         try {
           const cloudTasks = await fetchAllTasksFromCloud(currentUser.uid);
           if (cloudTasks.length > 0) {
-            if (settings.autoRolloverPending !== false) {
-              const { updatedTasks } = rollOverPastPendingTasks(cloudTasks);
-              setTasks(updatedTasks);
-            } else {
-              setTasks(cloudTasks);
-            }
+            setTasks((localPrev) => {
+              const taskMap = new Map<string, Task>();
+              // 1. Put cloud tasks
+              cloudTasks.forEach((ct) => taskMap.set(ct.id, ct));
+              // 2. Merge local tasks
+              localPrev.forEach((lt) => {
+                if (!taskMap.has(lt.id)) {
+                  taskMap.set(lt.id, lt);
+                } else {
+                  const cloudTask = taskMap.get(lt.id)!;
+                  const localTime = lt.createdAt || '';
+                  const cloudTime = cloudTask.createdAt || '';
+                  if (localTime >= cloudTime) {
+                    taskMap.set(lt.id, { ...cloudTask, ...lt });
+                  }
+                }
+              });
+              let merged = Array.from(taskMap.values());
+              if (settings.autoRolloverPending !== false) {
+                const { updatedTasks } = rollOverPastPendingTasks(merged);
+                merged = updatedTasks;
+              }
+              const sorted = sortTasksLogically(merged);
+              saveTasksToStorage(sorted);
+              syncTasksToCloud(currentUser.uid, sorted);
+              return sorted;
+            });
           } else {
             // First time cloud user: sync existing local tasks up to their new cloud account
             await syncTasksToCloud(currentUser.uid, tasks);
@@ -406,12 +428,17 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: 'task-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4),
       createdAt: new Date().toISOString(),
     };
-    setTasks((prev) => [newTask, ...prev]);
+    setTasks((prev) => {
+      const next = sortTasksLogically([newTask, ...prev]);
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
     if ((newTask.scheduledDate === getTodayDateString() || newTask.repeatDaily || newTask.repeatType === 'daily') && !activeTaskId) {
       setActiveTaskId(newTask.id);
     }
     return newTask;
-  }, [activeTaskId, setActiveTaskId]);
+  }, [activeTaskId, setActiveTaskId, user]);
 
   const addMultipleTasks = useCallback((tasksData: Omit<Task, 'id' | 'createdAt'>[]): Task[] => {
     const newTasks = tasksData.map((td, idx) => ({
@@ -419,18 +446,32 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: 'task-' + (Date.now() + idx) + '-' + Math.random().toString(36).substr(2, 4),
       createdAt: new Date().toISOString(),
     }));
-    setTasks((prev) => [...newTasks, ...prev]);
+    setTasks((prev) => {
+      const next = sortTasksLogically([...newTasks, ...prev]);
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
     return newTasks;
-  }, []);
+  }, [user]);
 
   const updateTask = useCallback((id: string, updates: Partial<Task>) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
-    );
-  }, []);
+    setTasks((prev) => {
+      const next = sortTasksLogically(
+        prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+      );
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
+  }, [user]);
 
   const deleteTask = useCallback((id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTasks((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      saveTasksToStorage(next);
+      return next;
+    });
     if (activeTaskId === id) {
       setActiveTaskId(null);
     }
@@ -441,8 +482,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [activeTaskId, focusTask, setActiveTaskId, user]);
 
   const toggleSubtask = useCallback((taskId: string, subtaskId: string) => {
-    setTasks((prev) =>
-      prev.map((t) => {
+    setTasks((prev) => {
+      const next = prev.map((t) => {
         if (t.id !== taskId) return t;
         const newSubtasks = t.subtasks.map((s) =>
           s.id === subtaskId ? { ...s, done: !s.done } : s
@@ -454,13 +495,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           status: allDone ? 'done' : 'todo',
           completedAt: allDone ? (t.completedAt || new Date().toISOString()) : null,
         };
-      })
-    );
-  }, []);
+      });
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
+  }, [user]);
 
   const setTaskDone = useCallback((taskId: string, done: boolean) => {
-    setTasks((prev) =>
-      prev.map((t) => {
+    setTasks((prev) => {
+      const next = prev.map((t) => {
         if (t.id !== taskId) return t;
         return {
           ...t,
@@ -468,27 +512,40 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           completedAt: done ? new Date().toISOString() : null,
           subtasks: t.subtasks.map((s) => ({ ...s, done })),
         };
-      })
-    );
-  }, []);
+      });
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
+  }, [user]);
 
   const scheduleTaskForToday = useCallback((taskId: string) => {
     const today = getTodayDateString();
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId ? { ...t, scheduledDate: today, status: 'todo' } : t
-      )
-    );
+    setTasks((prev) => {
+      const next = sortTasksLogically(
+        prev.map((t) =>
+          t.id === taskId ? { ...t, scheduledDate: today, status: 'todo' } : t
+        )
+      );
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
     setActiveTaskId(taskId);
-  }, [setActiveTaskId]);
+  }, [setActiveTaskId, user]);
 
   const scheduleTaskForDate = useCallback((taskId: string, date: string | null) => {
-    setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId ? { ...t, scheduledDate: date } : t
-      )
-    );
-  }, []);
+    setTasks((prev) => {
+      const next = sortTasksLogically(
+        prev.map((t) =>
+          t.id === taskId ? { ...t, scheduledDate: date } : t
+        )
+      );
+      saveTasksToStorage(next);
+      syncTasksToCloud(user ? user.uid : null, next);
+      return next;
+    });
+  }, [user]);
 
   const updateSettings = useCallback((newSettings: Partial<Settings>) => {
     setSettings((prev) => ({ ...prev, ...newSettings }));

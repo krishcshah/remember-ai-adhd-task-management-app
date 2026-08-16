@@ -96,22 +96,63 @@ export const TaskEditModal: React.FC = () => {
     );
   };
 
-  const handleSave = () => {
-    if (!editingTask || !title.trim()) return;
+  const [isMagicSaving, setIsMagicSaving] = useState(false);
 
-    const isDaily = repeatType === 'daily';
+  const handleMagicSave = async () => {
+    if (!editingTask || !title.trim() || isMagicSaving) return;
+    setIsMagicSaving(true);
+
+    let finalTitle = title.trim();
+    let finalCategory = category;
+    let finalEstMinutes = estMinutes || 20;
+    let finalRepeatType = repeatType;
+    let finalRepeatDays = repeatDays;
+    let finalSubtasks = subtasks;
+
+    try {
+      const existingSubs = subtasks
+        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
+        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
+
+      const res = await requestBreakdown(finalTitle, undefined, notes, finalCategory, existingSubs);
+
+      if (res.title) finalTitle = res.title;
+      if (res.category) finalCategory = res.category;
+      if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
+      if (res.repeatType) {
+        finalRepeatType = res.repeatType;
+        if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
+          finalRepeatDays = res.repeatDays;
+        }
+      }
+
+      // If user had no subtasks or existing was empty, populate from AI
+      if (existingSubs.length === 0 && res.subtasks && res.subtasks.length > 0) {
+        const normalized = normalizeAiSubtasks(res.subtasks, finalTitle);
+        finalSubtasks = normalized.map((s, idx) => ({
+          id: `edit-sub-${Date.now()}-${idx}`,
+          title: s.title,
+          estMinutes: s.estimatedMinutes,
+          done: false,
+        }));
+      }
+    } catch (err) {
+      console.warn('AI breakdown fallback in EditModal:', err);
+    }
+
+    const isDaily = finalRepeatType === 'daily';
 
     updateTask(editingTask.id, {
-      title: title.trim(),
-      category,
+      title: finalTitle,
+      category: finalCategory,
       scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
       scheduledTime: scheduledTime.trim() || null,
       repeatDaily: isDaily,
-      repeatType,
-      repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
+      repeatType: finalRepeatType,
+      repeatDays: finalRepeatType === 'weekly_on' ? finalRepeatDays : undefined,
       notes: notes.trim() || undefined,
-      estMinutes: estMinutes || 20,
-      subtasks: subtasks.map((s, idx) => ({
+      estMinutes: finalEstMinutes,
+      subtasks: finalSubtasks.map((s, idx) => ({
         id: s.id || `sub-${Date.now()}-${idx}`,
         title: s.title && s.title !== 'undefined' ? s.title : `Action step ${idx + 1}`,
         estMinutes: Number(s.estMinutes) || 5,
@@ -119,6 +160,7 @@ export const TaskEditModal: React.FC = () => {
       })),
     });
 
+    setIsMagicSaving(false);
     closeEdit();
   };
 
@@ -126,51 +168,6 @@ export const TaskEditModal: React.FC = () => {
     if (!editingTask) return;
     deleteTask(editingTask.id);
     closeEdit();
-  };
-
-  // Main AI Magic Re-run
-  const handleGenerateMagicBreakdown = async () => {
-    if (!title.trim()) return;
-    setAiNotice(null);
-    try {
-      const existingSubs = subtasks
-        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
-        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
-
-      const hadPriorSteps = existingSubs.length > 0;
-
-      const res = await requestBreakdown(title, undefined, notes, category, existingSubs);
-      if (res.title) setTitle(res.title);
-      if (res.category) setCategory(res.category);
-      if (res.repeatType) {
-        setRepeatType(res.repeatType);
-        if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
-          setRepeatDays(res.repeatDays);
-        }
-      }
-      setEstMinutes(res.estimatedMinutes);
-      const normalized = normalizeAiSubtasks(res.subtasks, res.title || title);
-      setSubtasks(
-        normalized.map((s, idx) => ({
-          id: `edit-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        }))
-      );
-      if (res.isAiGenerated !== false) {
-        setAiNotice(
-          hadPriorSteps
-            ? '✨ Gemini 3.7 Flash: refined steps, fixed spelling & updated estimates!'
-            : '✨ Gemini 3.7 Flash: updated title, category, repeat pattern & subtasks!'
-        );
-      } else {
-        setAiNotice('⚡ Refined with smart assistant');
-      }
-    } catch (e: any) {
-      console.error(e);
-      setAiNotice(`Notice: ${e?.message || 'AI generation failed'}`);
-    }
   };
 
   const handleAddSubtask = () => {
@@ -280,26 +277,6 @@ export const TaskEditModal: React.FC = () => {
                 className="w-full px-3.5 py-2.5 rounded-xl bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-800 text-sm font-semibold text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-600/30"
               />
             </div>
-          </div>
-
-          {/* AI Magic Action */}
-          <div className="bg-stone-50 dark:bg-stone-800/60 p-3 rounded-2xl border border-stone-200/80 dark:border-stone-700/80 space-y-2">
-            <button
-              type="button"
-              onClick={() => handleGenerateMagicBreakdown()}
-              disabled={aiLoading || !title.trim()}
-              className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-            >
-              <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
-              <span>{aiLoading ? 'Gemini updating task...' : 'AI Magic'}</span>
-            </button>
-
-            {aiNotice && (
-              <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs">
-                <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                <span className="text-[11px] leading-tight">{aiNotice}</span>
-              </div>
-            )}
           </div>
 
           {/* Category with + Add Category button */}
@@ -543,11 +520,12 @@ export const TaskEditModal: React.FC = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   type="button"
-                  onClick={handleSave}
-                  className="px-5 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  onClick={handleMagicSave}
+                  disabled={!title.trim() || isMagicSaving}
+                  className="px-5 py-2 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-bold text-xs shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                 >
-                  <Check className="w-4 h-4" />
-                  Save Changes
+                  <Sparkles className={`w-4 h-4 ${isMagicSaving ? 'animate-spin' : ''}`} />
+                  <span>{isMagicSaving ? 'Magic Saving...' : 'Magic Save'}</span>
                 </motion.button>
               </div>
             </div>

@@ -129,67 +129,73 @@ export const CaptureModal: React.FC = () => {
     if (total > 0) setEstTotalMinutes(total);
   };
 
-  // Run AI Magic Breakdown for quick add
-  const handleGenerateMagicSubtasks = async () => {
-    if (!title.trim()) return;
+  // Magic Save: runs AI breakdown if needed then immediately saves
+  const [isMagicSaving, setIsMagicSaving] = useState(false);
+
+  const handleMagicSave = async () => {
+    if (!title.trim() || isMagicSaving) return;
+    setIsMagicSaving(true);
+
+    let finalTitle = title.trim();
+    let finalCategory = category;
+    let finalEstMinutes = estTotalMinutes || 15;
+    let finalRepeatType = repeatType;
+    let finalRepeatDays = repeatDays;
+    let finalSubtasks = subtasks;
+
     try {
-      setAiEnhancedNotice(null);
       const existingSubs = subtasks
         .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
         .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
 
-      const hadPriorSteps = existingSubs.length > 0;
-
+      // Run AI breakdown to enrich task
       const res = await requestBreakdown(title, undefined, notes, category, existingSubs);
-      
-      // 1. Rewrite title and add emoji (with spelling correction)
-      if (res.title) {
-        setTitle(res.title);
-      }
-      
-      // 2. Select category
-      if (res.category) {
-        setCategory(res.category);
-      }
-      
-      // 3. Select repeat pattern
+
+      if (res.title) finalTitle = res.title;
+      if (res.category) finalCategory = res.category;
+      if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
       if (res.repeatType) {
-        setRepeatType(res.repeatType);
+        finalRepeatType = res.repeatType;
         if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
-          setRepeatDays(res.repeatDays);
+          finalRepeatDays = res.repeatDays;
         }
       }
-      
-      // 4. Select granularity
-      // granularity setting removed since AI autonomously determines it
-      
-      // 5. Total minutes & subtasks
-      setEstTotalMinutes(res.estimatedMinutes);
-      setSubtasks(
-        res.subtasks.map((s, idx) => ({
+
+      // If user had not already manually created steps, use the AI generated subtasks
+      if (existingSubs.length === 0 && res.subtasks && res.subtasks.length > 0) {
+        finalSubtasks = res.subtasks.map((s, idx) => ({
           id: `new-sub-${Date.now()}-${idx}`,
           title: s.title,
           estMinutes: s.estimatedMinutes,
-        }))
-      );
-      
-      if (res.isAiGenerated !== false) {
-        setAiEnhancedNotice(
-          hadPriorSteps
-            ? '✨ Gemini 3.7 Flash: refined your steps, fixed spelling & polished time estimates!'
-            : '✨ Gemini 3.7 Flash: generated emoji title, smart category, repeat pattern & micro-steps!'
-        );
-      } else {
-        setAiEnhancedNotice(
-          hadPriorSteps
-            ? '⚡ Refined existing steps & polished estimates'
-            : '⚡ Generated with smart assistant'
-        );
+        }));
       }
-    } catch (e: any) {
-      console.error(e);
-      setAiEnhancedNotice(`Notice: ${e?.message || 'Generated using offline assistant'}`);
+    } catch (err) {
+      console.warn('AI breakdown fell back gracefully on save:', err);
     }
+
+    const isDaily = finalRepeatType === 'daily';
+
+    addTask({
+      title: finalTitle,
+      category: finalCategory,
+      estMinutes: finalEstMinutes,
+      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
+      scheduledTime: scheduledTime.trim() || null,
+      repeatDaily: isDaily,
+      repeatType: finalRepeatType,
+      repeatDays: finalRepeatType === 'weekly_on' ? finalRepeatDays : undefined,
+      status: 'todo',
+      notes: notes.trim() || undefined,
+      subtasks: finalSubtasks.map((s) => ({
+        id: s.id,
+        title: s.title,
+        estMinutes: s.estMinutes,
+        done: false,
+      })),
+    });
+
+    setIsMagicSaving(false);
+    closeCapture();
   };
 
   // Run AI Brain Dump Extraction
@@ -201,34 +207,6 @@ export const CaptureModal: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
-  };
-
-  // Save Quick Add Task
-  const handleSaveQuickTask = () => {
-    if (!title.trim()) return;
-
-    const isDaily = repeatType === 'daily';
-
-    addTask({
-      title: title.trim(),
-      category,
-      estMinutes: estTotalMinutes || 15,
-      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
-      scheduledTime: scheduledTime.trim() || null,
-      repeatDaily: isDaily,
-      repeatType,
-      repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
-      status: 'todo',
-      notes: notes.trim() || undefined,
-      subtasks: subtasks.map((s) => ({
-        id: s.id,
-        title: s.title,
-        estMinutes: s.estMinutes,
-        done: false,
-      })),
-    });
-
-    closeCapture();
   };
 
   // Save Extracted Brain Dump tasks
@@ -336,7 +314,7 @@ export const CaptureModal: React.FC = () => {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && subtasks.length === 0) handleGenerateMagicSubtasks();
+                    if (e.key === 'Enter') handleMagicSave();
                   }}
                   className="w-full px-4 py-3 rounded-2xl bg-stone-50 dark:bg-stone-800/80 border border-stone-200 dark:border-stone-700 text-stone-900 dark:text-stone-100 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-teal-600/30"
                 />
@@ -592,26 +570,6 @@ export const CaptureModal: React.FC = () => {
                   </div>
                 </div>
 
-                {/* AI Magic Action Button */}
-                <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/60 space-y-2">
-                  <button
-                    type="button"
-                    onClick={handleGenerateMagicSubtasks}
-                    disabled={aiLoading || !title.trim()}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-[0.99] text-stone-950 font-display font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-                  >
-                    <Sparkles className={`w-3.5 h-3.5 ${aiLoading ? 'animate-spin' : ''}`} />
-                    <span>{aiLoading ? 'Gemini generating steps...' : 'AI Magic'}</span>
-                  </button>
-
-                  {aiEnhancedNotice && (
-                    <div className="flex items-center gap-2 p-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs">
-                      <Sparkles className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
-                      <span className="text-[11px] leading-tight">{aiEnhancedNotice}</span>
-                    </div>
-                  )}
-                </div>
-
                 {/* Subtasks List */}
                 {subtasks.length > 0 ? (
                   <div className="pt-2 border-t border-stone-200/70 dark:border-stone-700/60 space-y-2">
@@ -808,12 +766,12 @@ export const CaptureModal: React.FC = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   type="button"
-                  onClick={handleSaveQuickTask}
-                  disabled={!title.trim()}
+                  onClick={handleMagicSave}
+                  disabled={!title.trim() || isMagicSaving}
                   className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-display font-bold text-sm flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <Check className="w-4 h-4 stroke-[3px]" />
-                  <span>Save Task</span>
+                  <Sparkles className={`w-4 h-4 ${isMagicSaving ? 'animate-spin' : ''}`} />
+                  <span>{isMagicSaving ? 'Magic Saving...' : 'Magic Save'}</span>
                 </motion.button>
               </div>
             )}

@@ -1,22 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
 import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
 import {
-  getCustomClientApiKey,
-  setCustomClientApiKey,
-  hasClientApiKey,
-} from '../lib/geminiClient';
-import {
   Sparkles,
-  Sliders,
   Moon,
   Sun,
   Monitor,
   Download,
   Upload,
   RotateCcw,
-  ShieldCheck,
   Check,
   Tag,
   Plus,
@@ -25,7 +18,6 @@ import {
   RefreshCw,
   LogIn,
   LogOut,
-  KeyRound,
   CalendarClock,
   AlertCircle,
   ExternalLink,
@@ -53,38 +45,12 @@ export const SettingsView: React.FC = () => {
     clearAllData,
     exportDataJSON,
     importDataJSON,
-    testAiConnection,
   } = useTaskContext();
 
   const [contextInput, setContextInput] = useState(settings.context);
   const [copied, setCopied] = useState(false);
   const [copiedDomain, setCopiedDomain] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
-  
-  // AI Test & Custom Key states
-  const [isTestingAi, setIsTestingAi] = useState(false);
-  const [customKeyInput, setCustomKeyInput] = useState(() => getCustomClientApiKey());
-  const [keySavedNotice, setKeySavedNotice] = useState<string | null>(null);
-  const [aiTestResult, setAiTestResult] = useState<{
-    ok: boolean;
-    model?: string;
-    latencyMs?: number;
-    error?: string;
-  } | null>(null);
-
-  const handleRunAiTest = async () => {
-    setIsTestingAi(true);
-    setAiTestResult(null);
-    try {
-      const keyToUse = customKeyInput.trim() || getCustomClientApiKey();
-      const result = await testAiConnection(keyToUse || undefined);
-      setAiTestResult(result);
-    } catch (e: any) {
-      setAiTestResult({ ok: false, error: e?.message || 'Connection failed' });
-    } finally {
-      setIsTestingAi(false);
-    }
-  };
 
   const currentHostname = typeof window !== 'undefined' ? window.location.hostname : '';
   const isIframe = typeof window !== 'undefined' && window.self !== window.top;
@@ -143,7 +109,7 @@ export const SettingsView: React.FC = () => {
   );
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-20 space-y-6">
+    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
       {/* Header */}
       <div>
         <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
@@ -214,74 +180,6 @@ export const SettingsView: React.FC = () => {
           >
             {copied ? <Check className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
             {copied ? 'Saved Context!' : 'Update AI Context'}
-          </button>
-        </div>
-      </div>
-
-      {/* Subtask Granularity Default (Difficulty Dial) */}
-      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
-        <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
-          <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
-            <Sliders className="w-4 h-4" />
-          </div>
-          <div>
-            <h2 className="font-display font-bold text-sm">Default Breakdown Granularity</h2>
-            <p className="text-[11px] text-stone-500 dark:text-stone-400">
-              Controls how many steps AI generates per task (Default: Small)
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-          <button
-            onClick={() => updateSettings({ difficulty: 1 })}
-            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-              settings.difficulty === 1
-                ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
-            }`}
-          >
-            <div>
-              <div className="font-bold text-xs flex items-center justify-between">
-                <span>1 • Small</span>
-                <span className="text-[9px] bg-teal-600/90 text-white px-1.5 py-0.5 rounded-full font-mono">Default</span>
-              </div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-                3–4 micro-steps
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => updateSettings({ difficulty: 2 })}
-            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-              settings.difficulty === 2
-                ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
-            }`}
-          >
-            <div>
-              <div className="font-bold text-xs">2 • Normal</div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-                4–6 balanced steps
-              </div>
-            </div>
-          </button>
-
-          <button
-            onClick={() => updateSettings({ difficulty: 3 })}
-            className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-              settings.difficulty === 3
-                ? 'bg-teal-50 dark:bg-teal-950 border-teal-600 text-teal-900 dark:text-teal-200 ring-2 ring-teal-600/20'
-                : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-teal-400'
-            }`}
-          >
-            <div>
-              <div className="font-bold text-xs">3 • Deep</div>
-              <div className="text-[11px] text-stone-500 dark:text-stone-400 mt-1">
-                6–8 detailed steps
-              </div>
-            </div>
           </button>
         </div>
       </div>
@@ -524,151 +422,10 @@ export const SettingsView: React.FC = () => {
             )}
 
             <div className="text-[11px] text-amber-800 dark:text-amber-300/90 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
-              ✨ <em>Note: Your tasks and notes are already saved to Cloud Firestore via Anonymous Device Sync & saved locally, so you will never lose your data!</em>
+              ✨ <em>Note: Your tasks and notes are saved to Cloud Firestore via Anonymous Device Sync & saved locally, so you will never lose your data!</em>
             </div>
           </div>
         )}
-      </div>
-
-      {/* AI Engine & Gemini Diagnostics */}
-      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
-            <div className="w-8 h-8 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 flex items-center justify-center shrink-0">
-              <KeyRound className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-sm">Gemini AI Engine Status</h2>
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Powers AI Magic subtask decomposition & brain dump extraction
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleRunAiTest}
-            disabled={isTestingAi}
-            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-98 text-stone-950 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isTestingAi ? 'animate-spin' : ''}`} />
-            <span>{isTestingAi ? 'Testing...' : 'Test AI Connection'}</span>
-          </button>
-        </div>
-
-        <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-3">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-stone-700 dark:text-stone-300 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              Model: <code className="font-mono text-[11px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 px-1.5 py-0.5 rounded">gemini-3.7-flash</code>
-            </span>
-            <span className="text-[11px] text-stone-500 dark:text-stone-400 font-mono">
-              {hasClientApiKey() ? 'Client Direct Active' : 'Server/Vercel Backend'}
-            </span>
-          </div>
-
-          {/* Quick API Key Setup / Override for Vercel or Custom Keys */}
-          <div className="pt-1 border-t border-stone-200/60 dark:border-stone-700/60 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] font-bold text-stone-700 dark:text-stone-300 uppercase tracking-wider">
-                Custom Gemini API Key (Optional)
-              </label>
-              {customKeyInput && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomKeyInput('');
-                    setCustomClientApiKey('');
-                    setKeySavedNotice('Custom key removed');
-                    setTimeout(() => setKeySavedNotice(null), 2500);
-                  }}
-                  className="text-[10px] text-rose-500 hover:underline"
-                >
-                  Clear Key
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="password"
-                value={customKeyInput}
-                onChange={(e) => setCustomKeyInput(e.target.value)}
-                placeholder="AIzaSy... (Paste Gemini Key here for instant live AI)"
-                className="flex-1 px-3 py-2 text-xs rounded-xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-700 text-stone-800 dark:text-stone-200 focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomClientApiKey(customKeyInput);
-                  setKeySavedNotice('Key saved to local browser!');
-                  setTimeout(() => setKeySavedNotice(null), 2500);
-                  handleRunAiTest();
-                }}
-                disabled={!customKeyInput.trim()}
-                className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-stone-950 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer"
-              >
-                Save & Test
-              </button>
-            </div>
-
-            {keySavedNotice && (
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium animate-fadeIn">
-                ✓ {keySavedNotice}
-              </p>
-            )}
-
-            <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
-              💡 <strong>For Vercel Deployments:</strong> You can either paste your Gemini API Key above for instant local activation, or in Vercel Dashboard add <code>GEMINI_API_KEY</code> to <strong>Project Settings → Environment Variables</strong> and redeploy your deployment.
-            </p>
-          </div>
-
-          {aiTestResult && (
-            <div
-              className={`p-3 rounded-xl border text-xs animate-fadeIn space-y-1.5 ${
-                aiTestResult.ok
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-200'
-                  : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-700 text-rose-900 dark:text-rose-200'
-              }`}
-            >
-              <div className="flex items-center justify-between font-bold">
-                <span className="flex items-center gap-1.5">
-                  {aiTestResult.ok ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      AI Live & Responding!
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-                      AI Connection Failed
-                    </>
-                  )}
-                </span>
-                {aiTestResult.latencyMs && (
-                  <span className="font-mono text-[10px] opacity-80">
-                    {aiTestResult.latencyMs}ms latency
-                  </span>
-                )}
-              </div>
-
-              {aiTestResult.ok ? (
-                <p className="text-[11px] opacity-90">
-                  Successfully verified model ({aiTestResult.model || 'gemini-3.7-flash'}). All breakdown and brain-dump features are active.
-                </p>
-              ) : (
-                <div className="space-y-1 text-[11px] opacity-90">
-                  <p className="font-mono bg-white/60 dark:bg-black/40 p-2 rounded-lg border border-rose-200 dark:border-rose-800 break-words">
-                    {aiTestResult.error}
-                  </p>
-                  <p>
-                    Paste your Gemini API key in the input box above or add <code>GEMINI_API_KEY</code> in your deployment environment variables and trigger a redeploy.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
 
       {/* Data Management: Export / Import / Reset */}

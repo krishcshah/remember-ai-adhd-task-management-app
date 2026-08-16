@@ -15,7 +15,7 @@ import {
   Repeat,
   Check,
 } from 'lucide-react';
-import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
+import { getTodayDateString, isTaskScheduledForDate, formatLocalDateToIso } from '../utils/storage';
 
 export const CalendarView: React.FC = () => {
   const {
@@ -34,6 +34,7 @@ export const CalendarView: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [slideDirection, setSlideDirection] = useState<number>(1);
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
@@ -51,7 +52,16 @@ export const CalendarView: React.FC = () => {
   const handleGoToday = () => {
     setSlideDirection(weekOffset > 0 ? -1 : 1);
     setWeekOffset(0);
+    setMonthOffset(0);
     setSelectedDate(getTodayDateString());
+  };
+
+  const handlePrevMonth = () => {
+    setMonthOffset((p) => p - 1);
+  };
+
+  const handleNextMonth = () => {
+    setMonthOffset((p) => p + 1);
   };
 
   const slideVariants = {
@@ -72,19 +82,17 @@ export const CalendarView: React.FC = () => {
     }),
   };
 
-  // Generate 7 days for current week
+  // Generate 7 days for current week using local dates
   const getWeekDates = (offset: number) => {
     const curr = new Date();
     const dayOfWeek = curr.getDay(); // 0 is Sunday, 1 is Monday
     const distanceToMonday = (dayOfWeek + 6) % 7;
-    const monday = new Date(curr);
-    monday.setDate(curr.getDate() - distanceToMonday + offset * 7);
+    const monday = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() - distanceToMonday + offset * 7);
 
     const days = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      const iso = d.toISOString().split('T')[0];
+      const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
+      const iso = formatLocalDateToIso(d);
       days.push({
         date: d,
         iso,
@@ -108,53 +116,57 @@ export const CalendarView: React.FC = () => {
     (t) => !t.repeatDaily && t.repeatType !== 'daily' && t.repeatType !== 'weekly' && t.repeatType !== 'weekly_on' && !t.scheduledDate && t.status === 'todo'
   );
 
-  // Month dates generator
-  const getMonthDays = () => {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = today.getMonth();
+  // Month dates generator using local dates & monthOffset
+  const getMonthData = (offset: number) => {
+    const now = new Date();
+    const targetMonthDate = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    const year = targetMonthDate.getFullYear();
+    const month = targetMonthDate.getMonth();
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
 
     const days = [];
-    // Blank days before 1st
+    // Blank days before 1st (Monday start: 0=Mon ... 6=Sun)
     const startDayIndex = (firstDay.getDay() + 6) % 7;
     for (let i = 0; i < startDayIndex; i++) {
       days.push(null);
     }
     for (let i = 1; i <= lastDay.getDate(); i++) {
       const d = new Date(year, month, i);
-      const iso = d.toISOString().split('T')[0];
+      const iso = formatLocalDateToIso(d);
       days.push({
         iso,
         dayNumber: i,
         isToday: iso === getTodayDateString(),
       });
     }
-    return days;
+    return {
+      days,
+      monthLabel: targetMonthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    };
   };
 
-  const monthDays = getMonthDays();
+  const { days: monthDays, monthLabel } = getMonthData(monthOffset);
 
   // Helper to get category dots for a day
   const getDotsForDate = (iso: string) => {
     const dayTasks = tasks.filter((t) => isTaskScheduledForDate(t, iso) && t.status === 'todo');
     const catList = Array.from(new Set(dayTasks.map((t) => t.category))) as TaskCategory[];
-    return catList.slice(0, 4);
+    return catList.slice(0, 3);
   };
 
   const completedCount = scheduledForSelected.filter((t) => t.status === 'done').length;
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-20 space-y-6">
+    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-2 pb-20 space-y-4">
       {/* Top Header: View Toggle & Date Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
+          <h1 className="font-display text-xl font-bold text-stone-900 dark:text-stone-100">
             Calendar
           </h1>
-          <p className="text-xs text-stone-500 dark:text-stone-400">
-            Day schedule & repeating tasks
+          <p className="text-[11px] text-stone-500 dark:text-stone-400">
+            Schedule & repeating routines
           </p>
         </div>
 
@@ -182,18 +194,15 @@ export const CalendarView: React.FC = () => {
         </div>
       </div>
 
-      {/* Week View Day Strip */}
+      {/* Week View Day Strip (Compact Height) */}
       {viewMode === 'week' ? (
-        <div className="bg-white dark:bg-stone-900 rounded-3xl p-4 shadow-sm border border-stone-200/80 dark:border-stone-800">
+        <div className="bg-white dark:bg-stone-900 rounded-2xl p-3 shadow-xs border border-stone-200/80 dark:border-stone-800">
           {/* Week Navigation bar */}
-          <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center justify-between mb-2 px-1">
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-stone-700 dark:text-stone-300 font-display">
                 {weekDays[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
                 {weekDays[6].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-              <span className="hidden sm:inline-block text-[10px] text-stone-400 font-medium">
-                (slide / swipe)
               </span>
             </div>
             <div className="flex items-center gap-1">
@@ -225,8 +234,8 @@ export const CalendarView: React.FC = () => {
             </div>
           </div>
 
-          {/* 7-Day Horizontal Pills with Slide Animation & Drag-to-Slide */}
-          <div className="relative overflow-hidden min-h-[78px] touch-pan-y select-none">
+          {/* 7-Day Horizontal Pills with Slide Animation & Compact Height */}
+          <div className="relative overflow-hidden min-h-[58px] touch-pan-y select-none">
             <AnimatePresence mode="popLayout" initial={false} custom={slideDirection}>
               <motion.div
                 key={weekOffset}
@@ -252,7 +261,7 @@ export const CalendarView: React.FC = () => {
                     handlePrevWeek();
                   }
                 }}
-                className="grid grid-cols-7 gap-1.5 cursor-grab active:cursor-grabbing w-full"
+                className="grid grid-cols-7 gap-1 cursor-grab active:cursor-grabbing w-full"
               >
                 {weekDays.map((d) => {
                   const isSelected = d.iso === selectedDate;
@@ -261,32 +270,32 @@ export const CalendarView: React.FC = () => {
                   return (
                     <motion.button
                       key={d.iso}
-                      whileHover={{ scale: 1.03 }}
+                      whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setSelectedDate(d.iso)}
-                      className={`flex flex-col items-center py-2.5 px-1 rounded-2xl transition-all cursor-pointer ${
+                      className={`flex flex-col items-center py-1.5 px-0.5 rounded-xl transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-md'
+                          ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-xs'
                           : d.isToday
                           ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800'
                           : 'bg-stone-50 dark:bg-stone-900/60 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/50 dark:border-stone-800'
                       }`}
                     >
-                      <span className="text-[11px] font-medium opacity-80 uppercase tracking-tighter">
+                      <span className="text-[10px] font-medium opacity-80 uppercase tracking-tight">
                         {d.dayName}
                       </span>
-                      <span className="font-mono text-base font-bold my-0.5">
+                      <span className="font-mono text-sm font-bold my-0.5">
                         {d.dayNumber}
                       </span>
 
                       {/* Category dot indicators */}
-                      <div className="flex items-center gap-0.5 h-2">
+                      <div className="flex items-center gap-0.5 h-1.5">
                         {dots.map((cat, i) => {
                           const dotColor = allCategories[cat]?.dotColor || '#78716c';
                           return (
                             <span
                               key={i}
-                              className="w-1.5 h-1.5 rounded-full"
+                              className="w-1 h-1 rounded-full"
                               style={{
                                 backgroundColor: isSelected ? '#FDE047' : dotColor,
                               }}
@@ -302,19 +311,53 @@ export const CalendarView: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Month Grid View */
-        <div className="bg-white dark:bg-stone-900 rounded-3xl p-4 shadow-sm border border-stone-200/80 dark:border-stone-800">
-          <div className="grid grid-cols-7 gap-1 text-center mb-2">
+        /* Month Grid View (Compact Height with Month Navigation) */
+        <div className="bg-white dark:bg-stone-900 rounded-2xl p-3 shadow-xs border border-stone-200/80 dark:border-stone-800 space-y-2">
+          {/* Month Navigation bar */}
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-bold text-stone-800 dark:text-stone-200 font-display">
+              {monthLabel}
+            </span>
+            <div className="flex items-center gap-1">
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                onClick={handlePrevMonth}
+                aria-label="Previous month"
+                title="Previous month"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleGoToday}
+                className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 dark:text-teal-400 hover:underline cursor-pointer"
+              >
+                Today
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                onClick={handleNextMonth}
+                aria-label="Next month"
+                title="Next month"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </motion.button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1 text-center">
             {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-              <span key={i} className="text-[11px] font-bold text-stone-400">
+              <span key={i} className="text-[10px] font-bold text-stone-400">
                 {day}
               </span>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-1.5">
+          <div className="grid grid-cols-7 gap-1">
             {monthDays.map((d, idx) => {
-              if (!d) return <div key={`empty-${idx}`} className="h-10" />;
+              if (!d) return <div key={`empty-${idx}`} className="h-8 sm:h-9" />;
               const isSelected = d.iso === selectedDate;
               const dots = getDotsForDate(d.iso);
 
@@ -323,7 +366,7 @@ export const CalendarView: React.FC = () => {
                   key={d.iso}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => setSelectedDate(d.iso)}
-                  className={`h-11 rounded-xl flex flex-col items-center justify-center p-1 transition-all cursor-pointer ${
+                  className={`h-8 sm:h-9 rounded-xl flex flex-col items-center justify-center p-0.5 transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-teal-800 text-white font-bold'
                       : d.isToday
@@ -332,7 +375,7 @@ export const CalendarView: React.FC = () => {
                   }`}
                 >
                   <span className="font-mono text-xs leading-none">{d.dayNumber}</span>
-                  <div className="flex gap-0.5 mt-1">
+                  <div className="flex gap-0.5 mt-0.5">
                     {dots.map((cat, i) => {
                       const dotColor = allCategories[cat]?.dotColor || '#78716c';
                       return (
@@ -354,9 +397,9 @@ export const CalendarView: React.FC = () => {
       )}
 
       {/* Scheduled Tasks for Selected Day */}
-      <div className="space-y-3">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
-          <h2 className="font-display font-bold text-base text-stone-800 dark:text-stone-200 flex items-center gap-2">
+          <h2 className="font-display font-bold text-sm text-stone-800 dark:text-stone-200 flex items-center gap-2">
             <span>Tasks</span>
             <span className="text-xs font-normal text-stone-500 dark:text-stone-400">
               ({completedCount}/{scheduledForSelected.length} completed •{' '}
@@ -386,7 +429,7 @@ export const CalendarView: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.18 }}
-              className="space-y-2.5"
+              className="space-y-2"
             >
               {scheduledForSelected.map((task) => {
                 const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
@@ -408,7 +451,7 @@ export const CalendarView: React.FC = () => {
                     key={task.id}
                     layout
                     whileHover={{ scale: 1.005 }}
-                    className={`p-4 rounded-2xl border transition-colors flex flex-col gap-2.5 ${
+                    className={`p-3.5 rounded-2xl border transition-colors flex flex-col gap-2 ${
                       isDone
                         ? 'bg-stone-100/70 dark:bg-stone-900/40 border-stone-200 dark:border-stone-800 opacity-70'
                         : 'bg-white dark:bg-stone-900 border-stone-200/80 dark:border-stone-800 shadow-xs'
@@ -441,7 +484,7 @@ export const CalendarView: React.FC = () => {
                               onClick={() => openRepeatModal(task)}
                               className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                                 repeatBadge
-                                  ? 'bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
+                                    ? 'bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
                                   : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
                               }`}
                               title="Configure repeat"
@@ -567,15 +610,15 @@ export const CalendarView: React.FC = () => {
       </div>
 
       {/* Unscheduled Shelf (Brain Dump Tray) */}
-      <div className="pt-4 border-t border-stone-200 dark:border-stone-800">
-        <div className="flex items-center justify-between mb-3 px-1">
+      <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
+        <div className="flex items-center justify-between mb-2 px-1">
           <div className="flex items-center gap-2">
             <Inbox className="w-4 h-4 text-stone-500" />
-            <h2 className="font-display font-bold text-sm text-stone-800 dark:text-stone-200">
+            <h2 className="font-display font-bold text-xs text-stone-800 dark:text-stone-200">
               Unscheduled Inbox ({unscheduledTasks.length})
             </h2>
           </div>
-          <span className="text-xs text-stone-500">Unscheduled items</span>
+          <span className="text-[11px] text-stone-500">Unscheduled items</span>
         </div>
 
         {unscheduledTasks.length > 0 ? (
@@ -597,13 +640,13 @@ export const CalendarView: React.FC = () => {
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => scheduleTaskForToday(task.id)}
-                    className="px-2.5 py-1.5 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-xs font-semibold hover:bg-teal-200 transition-colors"
+                    className="px-2.5 py-1.5 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-xs font-semibold hover:bg-teal-200 transition-colors cursor-pointer"
                   >
                     Plan for Today
                   </button>
                   <button
                     onClick={() => scheduleTaskForDate(task.id, selectedDate)}
-                    className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 text-xs font-medium"
+                    className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 text-xs font-medium cursor-pointer"
                     title={`Schedule for selected day (${selectedDate})`}
                   >
                     ➔ This day

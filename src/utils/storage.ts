@@ -53,20 +53,27 @@ export function rollOverPastPendingTasks(tasks: Task[]): { updatedTasks: Task[];
   return { updatedTasks, rolledCount };
 }
 
+export function formatLocalDateToIso(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getDefaultInitialTasks(): Task[] {
   const today = getTodayDateString();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+  const tomorrowStr = formatLocalDateToIso(tomorrow);
 
   return [
     {
       id: 'task-daily-1',
       title: 'Morning Anchor: Hygiene & Vitamins',
-      category: 'health',
+      category: 'personal',
       estMinutes: 15,
       scheduledDate: today,
-      scheduledTime: '08:00',
+      scheduledTime: '08:30',
       repeatDaily: true,
       repeatType: 'daily',
       status: 'todo',
@@ -81,7 +88,7 @@ export function getDefaultInitialTasks(): Task[] {
     {
       id: 'task-1',
       title: 'Tidy up desk and organize workspace',
-      category: 'personal',
+      category: 'chores',
       estMinutes: 15,
       scheduledDate: today,
       scheduledTime: '10:30',
@@ -97,7 +104,7 @@ export function getDefaultInitialTasks(): Task[] {
     },
     {
       id: 'task-2',
-      title: 'Prepare quarterly tax receipts and summary',
+      title: 'Prepare quarterly project summary',
       category: 'work',
       estMinutes: 30,
       scheduledDate: today,
@@ -106,26 +113,44 @@ export function getDefaultInitialTasks(): Task[] {
       notes: 'Break into small steps so it does not feel intimidating.',
       createdAt: new Date(Date.now() - 3600000).toISOString(),
       subtasks: [
-        { id: 'sub-2-1', title: 'Open banking app and download last month statement PDF', estMinutes: 5, done: false },
-        { id: 'sub-2-2', title: 'Search email for "receipt" or "invoice" and save to tax folder', estMinutes: 10, done: false },
-        { id: 'sub-2-3', title: 'Log total expenses into accounting spreadsheet', estMinutes: 10, done: false },
-        { id: 'sub-2-4', title: 'Send summary email to accountant', estMinutes: 5, done: false },
+        { id: 'sub-2-1', title: 'Download last month project status document', estMinutes: 5, done: false },
+        { id: 'sub-2-2', title: 'Gather key highlights and milestone dates', estMinutes: 10, done: false },
+        { id: 'sub-2-3', title: 'Draft 3 bullet points of progress', estMinutes: 10, done: false },
+        { id: 'sub-2-4', title: 'Send summary update to the team', estMinutes: 5, done: false },
+      ],
+    },
+    {
+      id: 'task-night-1',
+      title: 'Night wind-down & journal',
+      category: 'personal',
+      estMinutes: 15,
+      scheduledDate: today,
+      scheduledTime: '23:00',
+      repeatDaily: true,
+      repeatType: 'daily',
+      status: 'todo',
+      notes: 'Calm routine to disconnect from screens before sleep.',
+      createdAt: new Date(Date.now() - 18000000).toISOString(),
+      subtasks: [
+        { id: 'sub-n-1', title: 'Plug phone across the room to charge', estMinutes: 2, done: false },
+        { id: 'sub-n-2', title: 'Jot down 3 quick thoughts from today', estMinutes: 5, done: false },
+        { id: 'sub-n-3', title: 'Dim lights and set alarm for tomorrow', estMinutes: 2, done: false },
       ],
     },
     {
       id: 'task-3',
-      title: 'Schedule dentist check-up and teeth cleaning',
-      category: 'health',
-      estMinutes: 15,
+      title: 'Review lecture notes & flashcards',
+      category: 'study',
+      estMinutes: 25,
       scheduledDate: tomorrowStr,
       scheduledTime: '11:00',
       status: 'todo',
-      notes: 'Been putting this off for a couple weeks.',
+      notes: 'Focus on key concepts from chapter 4.',
       createdAt: new Date(Date.now() - 7200000).toISOString(),
       subtasks: [
-        { id: 'sub-3-1', title: 'Find insurance card in wallet', estMinutes: 2, done: false },
-        { id: 'sub-3-2', title: 'Call dentist reception desk for Thursday slot', estMinutes: 7, done: false },
-        { id: 'sub-3-3', title: 'Add confirmed appointment time to calendar', estMinutes: 2, done: false },
+        { id: 'sub-3-1', title: 'Open study guide and highlight summary terms', estMinutes: 5, done: false },
+        { id: 'sub-3-2', title: 'Review 10 flashcards on spaced repetition', estMinutes: 15, done: false },
+        { id: 'sub-3-3', title: 'Write down 1 practice question to test recall', estMinutes: 5, done: false },
       ],
     },
     {
@@ -144,6 +169,63 @@ export function getDefaultInitialTasks(): Task[] {
       ],
     },
   ];
+}
+
+/**
+ * Orders tasks in a natural, logical ADHD-friendly day schedule:
+ * 1. Morning and daytime timed tasks in chronological order (04:00 - 19:59, like 8:30 AM morning routines) on TOP.
+ * 2. Untimed scheduled tasks (no specific scheduledTime) in the MIDDLE.
+ * 3. Late night timed tasks (20:00 - 23:59, like 11:00 PM evening routines) at the BOTTOM of scheduled tasks.
+ * 4. Unscheduled / Brain Dump Inbox tasks (scheduledDate === null) at the ABSOLUTE BOTTOM.
+ */
+export function sortTasksLogically(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    // 1. Unscheduled tasks stay at the absolute bottom
+    const aIsUnscheduled = !a.scheduledDate && !a.repeatDaily && a.repeatType !== 'daily' && a.repeatType !== 'weekly' && a.repeatType !== 'weekly_on';
+    const bIsUnscheduled = !b.scheduledDate && !b.repeatDaily && b.repeatType !== 'daily' && b.repeatType !== 'weekly' && b.repeatType !== 'weekly_on';
+
+    if (aIsUnscheduled && !bIsUnscheduled) return 1;
+    if (!aIsUnscheduled && bIsUnscheduled) return -1;
+
+    // Helper to categorize time tiers
+    const getTimeTier = (task: Task) => {
+      if (!task.scheduledTime || !task.scheduledTime.trim()) {
+        return { tier: 2, minutes: 720 }; // Untimed tasks = Tier 2 (Middle)
+      }
+      
+      const parts = task.scheduledTime.split(':');
+      const hours = parseInt(parts[0], 10) || 0;
+      const mins = parseInt(parts[1], 10) || 0;
+      const totalMinutes = hours * 60 + mins;
+
+      if (hours >= 20 || hours < 4) {
+        // Late night (Tier 3: 20:00 - 23:59 or early midnight wind-down)
+        return { tier: 3, minutes: hours < 4 ? totalMinutes + 1440 : totalMinutes };
+      } else {
+        // Morning / Daytime / Afternoon (Tier 1: 04:00 - 19:59)
+        return { tier: 1, minutes: totalMinutes };
+      }
+    };
+
+    const aTime = getTimeTier(a);
+    const bTime = getTimeTier(b);
+
+    if (aTime.tier !== bTime.tier) {
+      return aTime.tier - bTime.tier;
+    }
+
+    if (aTime.minutes !== bTime.minutes) {
+      return aTime.minutes - bTime.minutes;
+    }
+
+    // Secondary sort: Status (todo before done)
+    if (a.status !== b.status) {
+      return a.status === 'todo' ? -1 : 1;
+    }
+
+    // Tertiary sort: Creation timestamp
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
 }
 
 /**
@@ -179,10 +261,26 @@ const INITIALIZED_FLAG_KEY = 'remember_initialized_v2';
 
 export function loadTasksFromStorage(): Task[] {
   try {
-    const isInitialized = localStorage.getItem(INITIALIZED_FLAG_KEY);
     const raw = localStorage.getItem(TASKS_STORAGE_KEY);
-    const legacyRaw = localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+      if (Array.isArray(parsed)) {
+        return parsed;
+      }
+    }
 
+    const legacyRaw = localStorage.getItem(LEGACY_TASKS_STORAGE_KEY);
+    if (legacyRaw !== null) {
+      const parsed = JSON.parse(legacyRaw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+
+    const isInitialized = localStorage.getItem(INITIALIZED_FLAG_KEY);
     // If first time ever visiting the app (no initialized flag and no stored key)
     if (!isInitialized && raw === null && legacyRaw === null) {
       const initial = getDefaultInitialTasks();
@@ -191,21 +289,6 @@ export function loadTasksFromStorage(): Task[] {
       return initial;
     }
 
-    if (raw !== null) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-
-    if (legacyRaw !== null) {
-      const parsed = JSON.parse(legacyRaw);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-
-    // Default fallback if storage was corrupted
     return [];
   } catch (err) {
     console.warn('Failed to load tasks from storage:', err);
