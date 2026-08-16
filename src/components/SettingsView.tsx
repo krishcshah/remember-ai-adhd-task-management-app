@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, CategoryMeta } from '../types';
 import { getNotificationPermissionStatus, requestNotificationPermission } from '../utils/notifications';
 import {
   Sparkles,
@@ -12,8 +11,6 @@ import {
   Upload,
   RotateCcw,
   Check,
-  Tag,
-  Plus,
   Trash2,
   Cloud,
   RefreshCw,
@@ -28,6 +25,7 @@ import {
   User,
   Brain,
   Sliders,
+  SlidersHorizontal,
   Bell,
   Volume2,
   VolumeX,
@@ -38,7 +36,6 @@ import {
 export const SettingsView: React.FC = () => {
   const {
     settings,
-    categories,
     user,
     authError,
     clearAuthError,
@@ -47,8 +44,6 @@ export const SettingsView: React.FC = () => {
     signInWithGoogle,
     logOut,
     manualCloudSync,
-    openAddCategoryModal,
-    deleteCategory,
     updateSettings,
     resetAllData,
     clearAllData,
@@ -127,25 +122,20 @@ export const SettingsView: React.FC = () => {
     reader.readAsText(file);
   };
 
-  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
-  const customCategoryKeys = Object.keys(categories).filter(
-    (k) => !DEFAULT_CATEGORIES[k as keyof typeof DEFAULT_CATEGORIES]
-  );
-
   return (
     <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
-      {/* Header - You */}
+      {/* Header - Settings */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-teal-800 dark:bg-teal-700 text-white flex items-center justify-center shadow-sm">
-            <User className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl bg-stone-100 dark:bg-stone-800 text-stone-700 dark:text-stone-300 flex items-center justify-center shadow-sm border border-stone-200/80 dark:border-stone-700/80">
+            <SlidersHorizontal className="w-5 h-5" />
           </div>
           <div>
             <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
-              You
+              Settings
             </h1>
             <p className="text-xs text-stone-500 dark:text-stone-400">
-              {user ? (user.displayName || user.email || 'Personal ADHD System') : 'Your Personal ADHD System'}
+              {user ? (user.displayName || user.email || 'Personal ADHD System') : 'Preferences & Cloud Sync'}
             </p>
           </div>
         </div>
@@ -215,65 +205,6 @@ export const SettingsView: React.FC = () => {
             {copied ? <Check className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
             {copied ? 'Saved Context!' : 'Update AI Context'}
           </button>
-        </div>
-      </div>
-
-      {/* Category Management */}
-      <div className="bg-white dark:bg-stone-900 p-5 rounded-3xl border border-stone-200/80 dark:border-stone-800 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-stone-900 dark:text-stone-100">
-            <div className="w-8 h-8 rounded-xl bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 flex items-center justify-center">
-              <Tag className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 className="font-display font-bold text-sm">Task Categories</h2>
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">
-                Organize your life domains & areas of focus
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={openAddCategoryModal}
-            className="px-3 py-1.5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 text-xs font-semibold flex items-center gap-1 shadow-xs transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Add Category
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-          {Object.values(allCategories).map((cat) => {
-            const isCustom = Boolean(customCategoryKeys.includes(cat.id));
-            return (
-              <div
-                key={cat.id}
-                className="p-2.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 flex items-center justify-between gap-2"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: cat.dotColor }}
-                  />
-                  <span className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate">
-                    {cat.label}
-                  </span>
-                </div>
-
-                {isCustom && (
-                  <button
-                    type="button"
-                    onClick={() => deleteCategory(cat.id)}
-                    className="text-stone-400 hover:text-rose-500 p-1 transition-colors"
-                    title="Delete category"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
         </div>
       </div>
 

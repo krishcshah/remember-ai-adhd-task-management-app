@@ -11,7 +11,6 @@ export const TaskReminderBanner: React.FC = () => {
     snoozeReminder,
     startFocus,
     setTaskDone,
-    categories,
   } = useTaskContext();
 
   if (!activeReminders || activeReminders.length === 0) {
@@ -25,15 +24,6 @@ export const TaskReminderBanner: React.FC = () => {
     >
       <AnimatePresence mode="popLayout">
         {activeReminders.map((task: Task) => {
-          const category = categories[task.category] || {
-            label: task.category,
-            dotColor: '#0d9488',
-            bgLight: 'bg-teal-50',
-            bgDark: 'dark:bg-teal-950/40',
-            textColor: 'text-teal-800 dark:text-teal-300',
-            borderColor: 'border-teal-200 dark:border-teal-800',
-          };
-
           const firstSubtask =
             task.subtasks && task.subtasks.length > 0
               ? task.subtasks.find((s) => !s.done) || task.subtasks[0]
@@ -50,7 +40,7 @@ export const TaskReminderBanner: React.FC = () => {
               transition={{ type: 'spring', stiffness: 420, damping: 28 }}
               className="pointer-events-auto w-full bg-white/95 dark:bg-stone-900/95 backdrop-blur-md rounded-2xl p-4 shadow-xl shadow-stone-950/10 border border-stone-200/90 dark:border-stone-800 ring-1 ring-teal-500/30"
             >
-              {/* Header: Bell Icon, Time Pill, Category, Close Button */}
+              {/* Header: Bell Icon, Time Pill, Close Button */}
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex items-center gap-2">
                   <div className="relative flex items-center justify-center w-8 h-8 rounded-full bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400">
@@ -69,21 +59,14 @@ export const TaskReminderBanner: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full border ${category.borderColor} ${category.bgLight} ${category.bgDark} ${category.textColor}`}
-                  >
-                    {category.label}
-                  </span>
-                  <button
-                    id={`dismiss-reminder-btn-${task.id}`}
-                    onClick={() => dismissReminder(task.id)}
-                    aria-label="Dismiss reminder"
-                    className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  id={`dismiss-reminder-btn-${task.id}`}
+                  onClick={() => dismissReminder(task.id)}
+                  aria-label="Dismiss reminder"
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Task Title */}
@@ -113,7 +96,7 @@ export const TaskReminderBanner: React.FC = () => {
                     dismissReminder(task.id);
                     startFocus(task);
                   }}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97]"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold shadow-sm transition-all active:scale-[0.97] cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
                   <span>Start Focus</span>
@@ -125,7 +108,7 @@ export const TaskReminderBanner: React.FC = () => {
                     dismissReminder(task.id);
                     setTaskDone(task.id, true);
                   }}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-xs font-semibold border border-emerald-200 dark:border-emerald-800/60 transition-all active:scale-[0.97]"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200 text-xs font-semibold border border-emerald-200 dark:border-emerald-800/60 transition-all active:scale-[0.97] cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Done</span>
@@ -134,7 +117,7 @@ export const TaskReminderBanner: React.FC = () => {
                 <button
                   id={`snooze-reminder-btn-${task.id}`}
                   onClick={() => snoozeReminder(task.id, 5)}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-medium transition-all active:scale-[0.97]"
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 text-xs font-medium transition-all active:scale-[0.97] cursor-pointer"
                 >
                   <Clock className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" />
                   <span>Snooze 5m</span>

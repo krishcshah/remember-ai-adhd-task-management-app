@@ -1,11 +1,10 @@
-import { Task, Settings, CategoryMeta, DEFAULT_CATEGORIES } from '../types';
+import { Task, Settings } from '../types';
 
 const TASKS_STORAGE_KEY = 'remember_tasks_v2';
 const LEGACY_TASKS_STORAGE_KEY = 'anchor_tasks_v1';
 const SETTINGS_STORAGE_KEY = 'remember_settings_v2';
 const LEGACY_SETTINGS_STORAGE_KEY = 'anchor_settings_v1';
 const ACTIVE_TASK_KEY = 'remember_active_task_v2';
-const CATEGORIES_STORAGE_KEY = 'remember_custom_categories_v2';
 
 export function getTodayDateString(): string {
   const now = new Date();
@@ -304,25 +303,6 @@ export function saveTasksToStorage(tasks: Task[]) {
     localStorage.setItem(INITIALIZED_FLAG_KEY, 'true');
   } catch (err) {
     console.error('Failed to save tasks:', err);
-  }
-}
-
-export function loadCustomCategories(): Record<string, CategoryMeta> {
-  try {
-    const raw = localStorage.getItem(CATEGORIES_STORAGE_KEY);
-    if (!raw) return DEFAULT_CATEGORIES;
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_CATEGORIES, ...parsed };
-  } catch {
-    return DEFAULT_CATEGORIES;
-  }
-}
-
-export function saveCustomCategories(categories: Record<string, CategoryMeta>) {
-  try {
-    localStorage.setItem(CATEGORIES_STORAGE_KEY, JSON.stringify(categories));
-  } catch (err) {
-    console.error('Failed to save categories:', err);
   }
 }
 

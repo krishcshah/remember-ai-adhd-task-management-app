@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { Task, TaskCategory, Settings, ActiveTab, CategoryMeta, RepeatType, COLOR_PALETTES } from '../types';
+import { Task, Settings, ActiveTab, RepeatType } from '../types';
 import {
   loadTasksFromStorage,
   saveTasksToStorage,
@@ -7,8 +7,6 @@ import {
   saveSettingsToStorage,
   loadActiveTaskId,
   saveActiveTaskId,
-  loadCustomCategories,
-  saveCustomCategories,
   getTodayDateString,
   getDefaultInitialTasks,
   getDefaultSettings,
@@ -31,7 +29,6 @@ import {
   syncTaskDeletionToCloud,
   clearAllTasksFromCloud,
   syncSettingsToCloud,
-  syncCategoriesToCloud,
   fetchAllTasksFromCloud,
   auth,
   googleProvider,
@@ -42,7 +39,6 @@ import { playNotificationSound, triggerSystemNotification } from '../utils/notif
 interface TaskContextType {
   tasks: Task[];
   settings: Settings;
-  categories: Record<string, CategoryMeta>;
   currentTab: ActiveTab;
   activeTask: Task | null;
   focusTask: Task | null;
@@ -52,7 +48,7 @@ interface TaskContextType {
   editingTask: Task | null;
   isRepeatOpen: boolean;
   repeatTargetTask: Task | null;
-  isAddCategoryOpen: boolean;
+  isAiContextOpen: boolean;
   aiLoading: boolean;
   aiError: string | null;
   theme: 'light' | 'dark' | 'system';
@@ -75,8 +71,8 @@ interface TaskContextType {
   closeEdit: () => void;
   openRepeatModal: (task: Task) => void;
   closeRepeatModal: () => void;
-  openAddCategoryModal: () => void;
-  closeAddCategoryModal: () => void;
+  openAiContext: () => void;
+  closeAiContext: () => void;
   startFocus: (task: Task) => void;
   closeFocus: () => void;
   stopFocus: () => void;
@@ -92,10 +88,6 @@ interface TaskContextType {
   scheduleTaskForToday: (taskId: string) => void;
   scheduleTaskForDate: (taskId: string, date: string | null) => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
-  
-  // Category Management
-  addCategory: (label: string, paletteId?: string) => CategoryMeta;
-  deleteCategory: (id: string) => void;
 
   // Reminders & Notifications
   activeReminders: Task[];
@@ -108,11 +100,11 @@ interface TaskContextType {
     title: string,
     difficulty?: 1 | 2 | 3,
     notes?: string,
-    category?: TaskCategory,
+    category?: string,
     existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
   ) => Promise<{
     title?: string;
-    category: TaskCategory;
+    category?: string;
     scheduledDate?: string | null;
     scheduledTime?: string | null;
     repeatType?: RepeatType;
@@ -124,11 +116,11 @@ interface TaskContextType {
   }>;
   requestBrainDump: (
     text: string
-  ) => Promise<Array<{ title: string; category: TaskCategory; scheduledDate?: string | null; scheduledTime?: string | null; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>>;
+  ) => Promise<Array<{ title: string; category?: string; scheduledDate?: string | null; scheduledTime?: string | null; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>>;
   requestChatEdit: (
     task: Task,
     instruction: string
-  ) => Promise<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>;
+  ) => Promise<{ title: string; category?: string; estimatedMinutes: number; subtasks: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>;
   testAiConnection: () => Promise<{ ok: boolean; model?: string; latencyMs?: number; error?: string }>;
 
   // Backup & Reset
@@ -151,7 +143,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return raw;
   });
   const [settings, setSettings] = useState<Settings>(() => loadSettingsFromStorage());
-  const [categories, setCategories] = useState<Record<string, CategoryMeta>>(() => loadCustomCategories());
   const [currentTab, setCurrentTab] = useState<ActiveTab>('calendar');
   const [activeTaskId, setActiveTaskIdState] = useState<string | null>(() => loadActiveTaskId());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
@@ -168,7 +159,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isRepeatOpen, setIsRepeatOpen] = useState(false);
   const [repeatTargetTask, setRepeatTargetTask] = useState<Task | null>(null);
-  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [isAiContextOpen, setIsAiContextOpen] = useState(false);
 
   // Active Timed Task Reminders
   const [activeReminders, setActiveReminders] = useState<Task[]>([]);
@@ -266,12 +257,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [tasks, user]);
 
-  // Sync categories to local storage & cloud
-  useEffect(() => {
-    saveCustomCategories(categories);
-    syncCategoriesToCloud(user ? user.uid : null, categories);
-  }, [categories, user]);
-
   // Sync settings to local storage & cloud
   useEffect(() => {
     saveSettingsToStorage(settings);
@@ -359,12 +344,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await syncTasksToCloud(user ? user.uid : null, tasks);
       await syncSettingsToCloud(user ? user.uid : null, settings);
-      await syncCategoriesToCloud(user ? user.uid : null, categories);
       setCloudLastSynced(new Date());
     } finally {
       setIsCloudSyncing(false);
     }
-  }, [user, tasks, settings, categories]);
+  }, [user, tasks, settings]);
 
   const setActiveTaskId = useCallback((id: string | null) => {
     setActiveTaskIdState(id);
@@ -415,12 +399,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsRepeatOpen(false);
   }, []);
 
-  const openAddCategoryModal = useCallback(() => {
-    setIsAddCategoryOpen(true);
+  const openAiContext = useCallback(() => {
+    setIsAiContextOpen(true);
   }, []);
 
-  const closeAddCategoryModal = useCallback(() => {
-    setIsAddCategoryOpen(false);
+  const closeAiContext = useCallback(() => {
+    setIsAiContextOpen(false);
   }, []);
 
   const startFocus = useCallback((task: Task) => {
@@ -580,7 +564,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .filter((td) => td && typeof td === 'object' && String(td.title || '').trim().length > 0)
       .map((td, idx) => {
         const cleanTitle = String(td.title || '').trim();
-        const validCategory = (td.category as TaskCategory) || 'other';
+        const validCategory = (td.category as string) || 'other';
         const validEstMins = Math.max(1, Number(td.estMinutes) || 15);
         const validSubtasks = Array.isArray(td.subtasks)
           ? td.subtasks.map((st, sidx) => ({
@@ -715,39 +699,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSettings((prev) => ({ ...prev, ...newSettings }));
   }, []);
 
-  const addCategory = useCallback((label: string, paletteId?: string): CategoryMeta => {
-    const id = label.toLowerCase().replace(/[^a-z0-9]/g, '_') || `cat_${Date.now()}`;
-    const pal = COLOR_PALETTES.find((p) => p.id === paletteId) || COLOR_PALETTES[0];
-    const newCategory: CategoryMeta = {
-      id,
-      label,
-      color: `bg-${pal.id}-600`,
-      borderColor: pal.borderColor,
-      dotColor: pal.dotColor,
-      textColor: pal.textColor,
-      bgLight: pal.bgLight,
-      bgDark: pal.bgDark,
-    };
-
-    setCategories((prev) => ({ ...prev, [id]: newCategory }));
-    return newCategory;
-  }, []);
-
-  const deleteCategory = useCallback((id: string) => {
-    setCategories((prev) => {
-      const copy = { ...prev };
-      delete copy[id];
-      return copy;
-    });
-  }, []);
-
   // AI API with seamless multi-tier execution (Server / Vercel Serverless / Direct Client / Offline)
   const requestBreakdown = useCallback(
     async (
       title: string,
       difficulty?: 1 | 2 | 3,
       notes?: string,
-      category?: TaskCategory,
+      category?: string,
       existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
     ) => {
       setAiLoading(true);
@@ -767,7 +725,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               category,
               currentDate: todayIso,
               context: settings.context,
-              availableCategories: Object.keys(categories),
               existingSubtasks,
             }),
           });
@@ -779,7 +736,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const cleanSubtasks = normalizeAiSubtasks(data.subtasks || data.tasks, cleanTitle || title);
               return {
                 title: cleanTitle,
-                category: (data.category as TaskCategory) || category || 'other',
+                category: (data.category as string) || category || 'other',
                 scheduledDate: typeof data.scheduledDate === 'string' && data.scheduledDate.trim() ? data.scheduledDate.trim() : (data.scheduledDate === null ? null : undefined),
                 scheduledTime: typeof data.scheduledTime === 'string' && data.scheduledTime.trim() ? data.scheduledTime.trim() : (data.scheduledTime === null ? null : undefined),
                 repeatType: (data.repeatType as RepeatType) || 'none',
@@ -804,7 +761,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               category,
               currentDate: todayIso,
               context: settings.context,
-              availableCategories: Object.keys(categories),
               existingSubtasks,
             });
             if (clientData && (clientData.title || clientData.subtasks || clientData.tasks)) {
@@ -812,7 +768,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               const cleanSubtasks = normalizeAiSubtasks(clientData.subtasks || clientData.tasks, cleanTitle || title);
               return {
                 title: cleanTitle,
-                category: (clientData.category as TaskCategory) || category || 'other',
+                category: (clientData.category as string) || category || 'other',
                 scheduledDate: typeof clientData.scheduledDate === 'string' && clientData.scheduledDate.trim() ? clientData.scheduledDate.trim() : (clientData.scheduledDate === null ? null : undefined),
                 scheduledTime: typeof clientData.scheduledTime === 'string' && clientData.scheduledTime.trim() ? clientData.scheduledTime.trim() : (clientData.scheduledTime === null ? null : undefined),
                 repeatType: (clientData.repeatType as RepeatType) || 'none',
@@ -836,7 +792,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAiLoading(false);
       }
     },
-    [settings.difficulty, settings.context, categories]
+    [settings.difficulty, settings.context]
   );
 
   const requestBrainDump = useCallback(
@@ -867,7 +823,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const cleanSubtasks = t.subtasks ? normalizeAiSubtasks(t.subtasks, cleanTitle) : undefined;
                 return {
                   title: cleanTitle,
-                  category: (t.category as TaskCategory) || 'other',
+                  category: (t.category as string) || 'other',
                   scheduledDate: typeof t.scheduledDate === 'string' && t.scheduledDate.trim() ? t.scheduledDate.trim() : (t.scheduledDate === null ? null : undefined),
                   scheduledTime: typeof t.scheduledTime === 'string' && t.scheduledTime.trim() ? t.scheduledTime.trim() : (t.scheduledTime === null ? null : undefined),
                   estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
@@ -896,7 +852,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const cleanSubtasks = t.subtasks ? normalizeAiSubtasks(t.subtasks, cleanTitle) : undefined;
                 return {
                   title: cleanTitle,
-                  category: (t.category as TaskCategory) || 'other',
+                  category: (t.category as string) || 'other',
                   scheduledDate: typeof t.scheduledDate === 'string' && t.scheduledDate.trim() ? t.scheduledDate.trim() : (t.scheduledDate === null ? null : undefined),
                   scheduledTime: typeof t.scheduledTime === 'string' && t.scheduledTime.trim() ? t.scheduledTime.trim() : (t.scheduledTime === null ? null : undefined),
                   estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
@@ -947,7 +903,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             );
             return {
               title: cleanTitle,
-              category: (data.category as TaskCategory) || task.category,
+              category: (data.category as string) || task.category,
               estimatedMinutes: Number(data.estimatedMinutes || data.estMinutes) || task.estMinutes,
               subtasks: cleanSubtasks.length > 0 ? cleanSubtasks : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
               isAiGenerated: true,
@@ -973,7 +929,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               );
               return {
                 title: cleanTitle,
-                category: (clientData.category as TaskCategory) || task.category,
+                category: (clientData.category as string) || task.category,
                 estimatedMinutes: Number(clientData.estimatedMinutes || clientData.estMinutes) || task.estMinutes,
                 subtasks: cleanSubtasks.length > 0 ? cleanSubtasks : task.subtasks.map((s) => ({ title: s.title, estimatedMinutes: s.estMinutes })),
                 isAiGenerated: true,
@@ -1069,20 +1025,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       version: 2,
       exportDate: new Date().toISOString(),
       tasks,
-      categories,
       settings,
     };
     return JSON.stringify(data, null, 2);
-  }, [tasks, categories, settings]);
+  }, [tasks, settings]);
 
   const importDataJSON = useCallback((jsonStr: string): boolean => {
     try {
       const parsed = JSON.parse(jsonStr);
       if (parsed.tasks && Array.isArray(parsed.tasks)) {
         setTasks(parsed.tasks);
-        if (parsed.categories) {
-          setCategories((prev) => ({ ...prev, ...parsed.categories }));
-        }
         if (parsed.settings) {
           setSettings({ ...getDefaultSettings(), ...parsed.settings });
         }
@@ -1099,7 +1051,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         tasks,
         settings,
-        categories,
         currentTab,
         activeTask,
         focusTask,
@@ -1109,7 +1060,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         editingTask,
         isRepeatOpen,
         repeatTargetTask,
-        isAddCategoryOpen,
+        isAiContextOpen,
         aiLoading,
         aiError,
         theme: settings.theme,
@@ -1128,8 +1079,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         closeEdit,
         openRepeatModal,
         closeRepeatModal,
-        openAddCategoryModal,
-        closeAddCategoryModal,
+        openAiContext,
+        closeAiContext,
         startFocus,
         closeFocus,
         stopFocus,
@@ -1143,8 +1094,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         scheduleTaskForToday,
         scheduleTaskForDate,
         updateSettings,
-        addCategory,
-        deleteCategory,
         activeReminders,
         dismissReminder,
         snoozeReminder,

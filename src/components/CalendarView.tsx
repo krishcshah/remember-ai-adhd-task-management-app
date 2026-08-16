@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, Task, TaskCategory, CategoryMeta } from '../types';
+import { Task } from '../types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,8 +14,9 @@ import {
   Calendar as CalendarIcon,
   ChevronDown,
   Repeat,
-  Paperclip,
   Sparkles,
+  Brain,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { getTodayDateString, isTaskScheduledForDate, formatLocalDateToIso } from '../utils/storage';
 import { TaskBriefModal } from './TaskBriefModal';
@@ -23,12 +24,12 @@ import { TaskBriefModal } from './TaskBriefModal';
 export const CalendarView: React.FC = () => {
   const {
     tasks,
-    categories,
     scheduleTaskForToday,
     scheduleTaskForDate,
     setTaskDone,
     openEdit,
     openCapture,
+    openAiContext,
     setCurrentTab,
   } = useTaskContext();
 
@@ -37,11 +38,8 @@ export const CalendarView: React.FC = () => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [slideDirection, setSlideDirection] = useState<number>(1);
-  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
   const [briefModalTask, setBriefModalTask] = useState<Task | null>(null);
-
-  const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
 
   const handlePrevWeek = () => {
     setSlideDirection(-1);
@@ -112,13 +110,8 @@ export const CalendarView: React.FC = () => {
     isTaskScheduledForDate(t, selectedDate)
   );
 
-  const filteredTasks = scheduledForSelected.filter((t) => {
-    if (filterCategory === 'all') return true;
-    return t.category === filterCategory;
-  });
-
-  const pendingTasks = filteredTasks.filter((t) => t.status === 'todo');
-  const completedTasks = filteredTasks.filter((t) => t.status === 'done');
+  const pendingTasks = scheduledForSelected.filter((t) => t.status === 'todo');
+  const completedTasks = scheduledForSelected.filter((t) => t.status === 'done');
 
   // Unscheduled tasks (Brain dump inbox)
   const unscheduledTasks = tasks.filter(
@@ -159,11 +152,9 @@ export const CalendarView: React.FC = () => {
 
   const { days: monthDays, monthLabel } = getMonthData(monthOffset);
 
-  // Category dots for a day
-  const getDotsForDate = (iso: string) => {
-    const dayTasks = tasks.filter((t) => isTaskScheduledForDate(t, iso) && t.status === 'todo');
-    const catList = Array.from(new Set(dayTasks.map((t) => t.category))) as TaskCategory[];
-    return catList.slice(0, 3);
+  // Check if date has pending tasks
+  const hasTasksForDate = (iso: string) => {
+    return tasks.some((t) => isTaskScheduledForDate(t, iso) && t.status === 'todo');
   };
 
   // Format selected date header (e.g., "16 Aug")
@@ -175,18 +166,22 @@ export const CalendarView: React.FC = () => {
 
   return (
     <div className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-1 pb-24 space-y-3">
-      {/* Top Header Bar: Reference clean style */}
+      {/* Top Header Bar: AI Context on left, Date in center, Settings on right */}
       <div className="flex items-center justify-between pt-1 pb-1">
-        {/* Left: Attachment button opens AI Brain Dump */}
+        {/* Left: AI Context button */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           whileHover={{ scale: 1.08 }}
-          onClick={() => openCapture('braindump')}
-          className="p-2 rounded-xl text-teal-800 dark:text-teal-400 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer relative group"
-          title="Open Brain Dump & Quick Capture"
-          aria-label="Brain Dump"
+          onClick={openAiContext}
+          id="header-ai-context-btn"
+          className="p-2 rounded-xl text-stone-700 dark:text-stone-300 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer relative group flex items-center gap-1"
+          title="Open AI Life Context & Working Style"
+          aria-label="AI Life Context"
         >
-          <Paperclip className="w-5 h-5 rotate-45" />
+          <div className="relative">
+            <Brain className="w-5 h-5 text-amber-500 stroke-[2.2px]" />
+            <Sparkles className="w-2.5 h-2.5 text-teal-600 dark:text-teal-400 absolute -top-1 -right-1" />
+          </div>
         </motion.button>
 
         {/* Center: Selected Date & View Switcher */}
@@ -203,16 +198,17 @@ export const CalendarView: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: You (Profile & Settings) without yellow tint */}
+        {/* Right: The ONE and ONLY Settings button */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           whileHover={{ scale: 1.06 }}
           onClick={() => setCurrentTab('settings')}
-          className="flex items-center justify-center w-9 h-9 rounded-xl bg-teal-800 dark:bg-teal-700 text-teal-50 shadow-xs hover:shadow-md transition-all cursor-pointer border border-teal-700/60 dark:border-teal-600/60"
-          title="Open You"
-          aria-label="You"
+          id="header-settings-btn"
+          className="flex items-center justify-center w-9 h-9 rounded-xl bg-stone-100 hover:bg-stone-200 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-200 shadow-xs hover:shadow-md transition-all cursor-pointer border border-stone-200/80 dark:border-stone-700/80"
+          title="Open Settings"
+          aria-label="Settings"
         >
-          <Sparkles className="w-4.5 h-4.5 text-teal-100 dark:text-teal-100" />
+          <SlidersHorizontal className="w-4.5 h-4.5" />
         </motion.button>
       </div>
 
@@ -271,7 +267,7 @@ export const CalendarView: React.FC = () => {
               >
                 {weekDays.map((d) => {
                   const isSelected = d.iso === selectedDate;
-                  const dots = getDotsForDate(d.iso);
+                  const hasTasks = hasTasksForDate(d.iso);
 
                   return (
                     <motion.button
@@ -297,20 +293,15 @@ export const CalendarView: React.FC = () => {
                         {d.dayNumber}
                       </span>
 
-                      {/* Micro category dots */}
-                      <div className="flex items-center gap-0.5 h-1">
-                        {dots.map((cat, i) => {
-                          const dotColor = allCategories[cat]?.dotColor || '#78716c';
-                          return (
-                            <span
-                              key={i}
-                              className="w-1 h-1 rounded-full"
-                              style={{
-                                backgroundColor: isSelected ? '#FDE047' : dotColor,
-                              }}
-                            />
-                          );
-                        })}
+                      {/* Micro task indicator dot */}
+                      <div className="flex items-center justify-center h-1.5">
+                        {hasTasks && (
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              isSelected ? 'bg-amber-300' : 'bg-teal-600 dark:bg-teal-400'
+                            }`}
+                          />
+                        )}
                       </div>
                     </motion.button>
                   );
@@ -362,7 +353,7 @@ export const CalendarView: React.FC = () => {
             {monthDays.map((d, idx) => {
               if (!d) return <div key={`empty-${idx}`} className="h-7" />;
               const isSelected = d.iso === selectedDate;
-              const dots = getDotsForDate(d.iso);
+              const hasTasks = hasTasksForDate(d.iso);
 
               return (
                 <motion.button
@@ -378,16 +369,14 @@ export const CalendarView: React.FC = () => {
                   }`}
                 >
                   <span className="font-mono text-xs leading-none">{d.dayNumber}</span>
-                  <div className="flex gap-0.5 mt-0.5">
-                    {dots.map((cat, i) => (
+                  <div className="h-1 flex items-center justify-center mt-0.5">
+                    {hasTasks && (
                       <span
-                        key={i}
-                        className="w-1 h-1 rounded-full"
-                        style={{
-                          backgroundColor: isSelected ? '#FDE047' : allCategories[cat]?.dotColor || '#78716c',
-                        }}
+                        className={`w-1 h-1 rounded-full ${
+                          isSelected ? 'bg-amber-300' : 'bg-teal-600 dark:bg-teal-400'
+                        }`}
                       />
-                    ))}
+                    )}
                   </div>
                 </motion.button>
               );
@@ -396,22 +385,12 @@ export const CalendarView: React.FC = () => {
         </div>
       )}
 
-      {/* Task Filters & Time Left Banner (Reference Image 3 Style) */}
+      {/* Task Status & Time Left Header */}
       <div className="flex items-center justify-between px-1 pt-1">
-        <div className="relative inline-block">
-          <select
-            value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value)}
-            className="appearance-none bg-stone-200/70 dark:bg-stone-800 text-stone-800 dark:text-stone-200 text-xs font-semibold py-1 pl-2.5 pr-6 rounded-xl border-none focus:ring-1 focus:ring-teal-700 cursor-pointer"
-          >
-            <option value="all">all tasks</option>
-            {(Object.values(allCategories) as CategoryMeta[]).map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 text-stone-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-bold text-stone-800 dark:text-stone-200">
+            {pendingTasks.length} {pendingTasks.length === 1 ? 'task' : 'tasks'}
+          </span>
         </div>
 
         <div className="text-xs font-mono font-medium text-stone-500 dark:text-stone-400">
@@ -424,10 +403,6 @@ export const CalendarView: React.FC = () => {
         <AnimatePresence mode="popLayout">
           {pendingTasks.length > 0 ? (
             pendingTasks.map((task) => {
-              const meta = allCategories[task.category] || allCategories.personal || DEFAULT_CATEGORIES.personal;
-              const hasSubtasks = task.subtasks && task.subtasks.length > 0;
-              const completedSubs = hasSubtasks ? task.subtasks.filter((s) => s.done).length : 0;
-
               return (
                 <motion.div
                   key={task.id}
@@ -461,14 +436,6 @@ export const CalendarView: React.FC = () => {
 
                     {/* Inline metadata under or next to title */}
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap text-[11px]">
-                      <span className={`inline-flex items-center gap-1 font-semibold px-1.5 py-0.2 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}>
-                        <span
-                          className="w-1.5 h-1.5 rounded-full shrink-0"
-                          style={{ backgroundColor: meta.dotColor }}
-                        />
-                        {meta.label}
-                      </span>
-
                       <span className="font-mono text-stone-500 dark:text-stone-400 inline-flex items-center gap-0.5">
                         <Clock className="w-2.5 h-2.5" />
                         {task.estMinutes}m
@@ -477,12 +444,6 @@ export const CalendarView: React.FC = () => {
                       {task.scheduledTime && (
                         <span className="font-mono text-teal-800 dark:text-teal-300 font-medium">
                           @{task.scheduledTime}
-                        </span>
-                      )}
-
-                      {hasSubtasks && (
-                        <span className="text-[10px] text-stone-400 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.2 rounded">
-                          {completedSubs}/{task.subtasks.length} steps
                         </span>
                       )}
 

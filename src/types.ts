@@ -1,6 +1,28 @@
-export type TaskCategory = string;
-
 export type RepeatType = 'none' | 'daily' | 'weekly' | 'weekly_on';
+
+export interface CategoryOption {
+  id: string;
+  label: string;
+  emoji: string;
+  colorClass: string;
+  bgLight: string;
+  bgDark: string;
+  textColor: string;
+}
+
+export const CATEGORIES: CategoryOption[] = [
+  { id: 'work', label: 'Work', emoji: '💼', colorClass: 'teal', bgLight: 'bg-teal-50', bgDark: 'dark:bg-teal-950/60', textColor: 'text-teal-800 dark:text-teal-300' },
+  { id: 'personal', label: 'Personal', emoji: '🌱', colorClass: 'emerald', bgLight: 'bg-emerald-50', bgDark: 'dark:bg-emerald-950/60', textColor: 'text-emerald-800 dark:text-emerald-300' },
+  { id: 'health', label: 'Health', emoji: '💧', colorClass: 'blue', bgLight: 'bg-sky-50', bgDark: 'dark:bg-sky-950/60', textColor: 'text-sky-800 dark:text-sky-300' },
+  { id: 'errands', label: 'Errands', emoji: '🛒', colorClass: 'amber', bgLight: 'bg-amber-50', bgDark: 'dark:bg-amber-950/60', textColor: 'text-amber-800 dark:text-amber-300' },
+  { id: 'study', label: 'Study', emoji: '📚', colorClass: 'indigo', bgLight: 'bg-indigo-50', bgDark: 'dark:bg-indigo-950/60', textColor: 'text-indigo-800 dark:text-indigo-300' },
+  { id: 'other', label: 'General', emoji: '✨', colorClass: 'stone', bgLight: 'bg-stone-100', bgDark: 'dark:bg-stone-800', textColor: 'text-stone-700 dark:text-stone-300' },
+];
+
+export function getCategoryInfo(categoryId?: string): CategoryOption {
+  const found = CATEGORIES.find((c) => c.id.toLowerCase() === (categoryId || '').toLowerCase());
+  return found || CATEGORIES[5]; // Default to 'other'
+}
 
 export interface Subtask {
   id: string;
@@ -12,7 +34,7 @@ export interface Subtask {
 export interface Task {
   id: string;
   title: string;
-  category: TaskCategory;
+  category?: string;
   estMinutes: number;
   subtasks: Subtask[];
   scheduledDate: string | null; // ISO 'YYYY-MM-DD' or null (null = "brain dump" inbox)
@@ -32,76 +54,10 @@ export interface Settings {
   theme: 'light' | 'dark' | 'system';
   difficulty: 1 | 2 | 3; // 1: bite-size (default) | 2: normal | 3: deep steps
   autoRolloverPending?: boolean; // Automatically roll over uncompleted tasks from past days to Today
-  customCategories?: CategoryMeta[];
   notificationsEnabled?: boolean; // Enable time-based task notifications (default true)
   notificationSound?: boolean; // Play gentle audio chime (default true)
 }
 
-export type ActiveTab = 'now' | 'calendar' | 'library' | 'settings';
+export type ActiveTab = 'now' | 'calendar' | 'library' | 'settings' | 'you';
 
-export interface CategoryMeta {
-  id: string;
-  label: string;
-  color: string; // Tailwind background/badge styling
-  borderColor: string;
-  dotColor: string;
-  textColor: string;
-  bgLight: string;
-  bgDark: string;
-}
 
-export const DEFAULT_CATEGORIES: Record<string, CategoryMeta> = {
-  work: {
-    id: 'work',
-    label: 'Work',
-    color: 'bg-emerald-600',
-    borderColor: 'border-emerald-200 dark:border-emerald-800',
-    dotColor: '#059669',
-    textColor: 'text-emerald-800 dark:text-emerald-300',
-    bgLight: 'bg-emerald-50',
-    bgDark: 'dark:bg-emerald-950/40',
-  },
-  study: {
-    id: 'study',
-    label: 'Study',
-    color: 'bg-sky-600',
-    borderColor: 'border-sky-200 dark:border-sky-800',
-    dotColor: '#0284c7',
-    textColor: 'text-sky-800 dark:text-sky-300',
-    bgLight: 'bg-sky-50',
-    bgDark: 'dark:bg-sky-950/40',
-  },
-  chores: {
-    id: 'chores',
-    label: 'Chores',
-    color: 'bg-amber-600',
-    borderColor: 'border-amber-200 dark:border-amber-800',
-    dotColor: '#d97706',
-    textColor: 'text-amber-800 dark:text-amber-300',
-    bgLight: 'bg-amber-50',
-    bgDark: 'dark:bg-amber-950/40',
-  },
-  personal: {
-    id: 'personal',
-    label: 'Personal',
-    color: 'bg-teal-600',
-    borderColor: 'border-teal-200 dark:border-teal-800',
-    dotColor: '#0d9488',
-    textColor: 'text-teal-800 dark:text-teal-300',
-    bgLight: 'bg-teal-50',
-    bgDark: 'dark:bg-teal-950/40',
-  },
-};
-
-export const CATEGORIES = DEFAULT_CATEGORIES;
-
-export const COLOR_PALETTES = [
-  { id: 'indigo', label: 'Indigo', dotColor: '#6366f1', bgLight: 'bg-indigo-50', bgDark: 'dark:bg-indigo-950/40', borderColor: 'border-indigo-200 dark:border-indigo-800', textColor: 'text-indigo-800 dark:text-indigo-300' },
-  { id: 'purple', label: 'Purple', dotColor: '#a855f7', bgLight: 'bg-purple-50', bgDark: 'dark:bg-purple-950/40', borderColor: 'border-purple-200 dark:border-purple-800', textColor: 'text-purple-800 dark:text-purple-300' },
-  { id: 'pink', label: 'Pink', dotColor: '#ec4899', bgLight: 'bg-pink-50', bgDark: 'dark:bg-pink-950/40', borderColor: 'border-pink-200 dark:border-pink-800', textColor: 'text-pink-800 dark:text-pink-300' },
-  { id: 'cyan', label: 'Cyan', dotColor: '#06b6d4', bgLight: 'bg-cyan-50', bgDark: 'dark:bg-cyan-950/40', borderColor: 'border-cyan-200 dark:border-cyan-800', textColor: 'text-cyan-800 dark:text-cyan-300' },
-  { id: 'lime', label: 'Lime', dotColor: '#84cc16', bgLight: 'bg-lime-50', bgDark: 'dark:bg-lime-950/40', borderColor: 'border-lime-200 dark:border-lime-800', textColor: 'text-lime-800 dark:text-lime-300' },
-  { id: 'orange', label: 'Orange', dotColor: '#f97316', bgLight: 'bg-orange-50', bgDark: 'dark:bg-orange-950/40', borderColor: 'border-orange-200 dark:border-orange-800', textColor: 'text-orange-800 dark:text-orange-300' },
-  { id: 'teal', label: 'Teal', dotColor: '#14b8a6', bgLight: 'bg-teal-50', bgDark: 'dark:bg-teal-950/40', borderColor: 'border-teal-200 dark:border-teal-800', textColor: 'text-teal-800 dark:text-teal-300' },
-  { id: 'rose', label: 'Rose', dotColor: '#f43f5e', bgLight: 'bg-rose-50', bgDark: 'dark:bg-rose-950/40', borderColor: 'border-rose-200 dark:border-rose-800', textColor: 'text-rose-800 dark:text-rose-300' },
-];

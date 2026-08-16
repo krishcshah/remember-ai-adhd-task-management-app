@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, TaskCategory, Task, CategoryMeta } from '../types';
+import { Task } from '../types';
 import {
   Search,
   CheckCircle2,
@@ -20,8 +20,6 @@ import { getTodayDateString, isTaskScheduledForDate } from '../utils/storage';
 export const LibraryView: React.FC = () => {
   const {
     tasks,
-    categories,
-    openAddCategoryModal,
     openRepeatModal,
     scheduleTaskForToday,
     setTaskDone,
@@ -32,12 +30,9 @@ export const LibraryView: React.FC = () => {
   } = useTaskContext();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTab, setFilterTab] = useState<
-    'all' | 'today' | 'unscheduled' | 'completed' | TaskCategory
-  >('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'today' | 'unscheduled' | 'completed'>('all');
 
   const todayStr = getTodayDateString();
-  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   const filteredTasks = tasks.filter((task) => {
     // Search query match
@@ -54,7 +49,7 @@ export const LibraryView: React.FC = () => {
     if (filterTab === 'today') return isTaskScheduledForDate(task, todayStr) && task.status === 'todo';
     if (filterTab === 'unscheduled') return !task.scheduledDate && !task.repeatDaily && task.status === 'todo';
     if (filterTab === 'completed') return task.status === 'done';
-    return task.category === filterTab && task.status === 'todo';
+    return task.status === 'todo';
   });
 
   return (
@@ -71,14 +66,6 @@ export const LibraryView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={openAddCategoryModal}
-            className="px-2.5 py-1.5 rounded-xl bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-stone-700 dark:text-stone-300 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" /> Category
-          </motion.button>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -159,22 +146,6 @@ export const LibraryView: React.FC = () => {
         >
           Completed
         </motion.button>
-
-        {Object.values(allCategories).map((cat) => (
-          <motion.button
-            key={cat.id}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setFilterTab(cat.id)}
-            className={`px-3 py-1.5 rounded-xl font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 cursor-pointer ${
-              filterTab === cat.id
-                ? 'bg-stone-800 dark:bg-stone-700 text-white font-semibold'
-                : 'bg-white dark:bg-stone-900 text-stone-600 dark:text-stone-300 border border-stone-200/80 dark:border-stone-800'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.dotColor }} />
-            {cat.label}
-          </motion.button>
-        ))}
       </div>
 
       {/* Task List */}
@@ -182,7 +153,6 @@ export const LibraryView: React.FC = () => {
         <AnimatePresence mode="popLayout">
           {filteredTasks.length > 0 ? (
             filteredTasks.map((task) => {
-              const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
               const isDone = task.status === 'done';
               const isToday = isTaskScheduledForDate(task, todayStr);
 
@@ -241,12 +211,6 @@ export const LibraryView: React.FC = () => {
                         )}
 
                         <div className="flex flex-wrap items-center gap-2 mt-2">
-                          <span
-                            className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
-                          >
-                            {meta.label}
-                          </span>
-
                           <span className="text-[11px] font-mono text-stone-500 flex items-center gap-0.5">
                             <Clock className="w-3 h-3" />
                             ~{task.estMinutes}m

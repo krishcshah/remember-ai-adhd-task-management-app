@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, Task } from '../types';
+import { Task, getCategoryInfo } from '../types';
 import {
   X,
   CheckCircle2,
@@ -9,9 +9,7 @@ import {
   Play,
   Pencil,
   Clock,
-  Calendar,
   Check,
-  Sparkles,
 } from 'lucide-react';
 
 interface TaskBriefModalProps {
@@ -21,7 +19,6 @@ interface TaskBriefModalProps {
 
 export const TaskBriefModal: React.FC<TaskBriefModalProps> = ({ task, onClose }) => {
   const {
-    categories,
     toggleSubtask,
     setTaskDone,
     startFocus,
@@ -30,13 +27,8 @@ export const TaskBriefModal: React.FC<TaskBriefModalProps> = ({ task, onClose })
 
   if (!task) return null;
 
-  const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
-  const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.personal;
   const isDone = task.status === 'done';
-
-  const completedSubtasks = task.subtasks.filter((s) => s.done).length;
-  const totalSubtasks = task.subtasks.length;
-  const progressPercent = totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0;
+  const categoryInfo = getCategoryInfo(task.category);
 
   const handleToggleDone = () => {
     setTaskDone(task.id, !isDone);
@@ -76,17 +68,18 @@ export const TaskBriefModal: React.FC<TaskBriefModalProps> = ({ task, onClose })
           {/* Header Row */}
           <div className="flex items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
-              >
-                {meta.label}
+              <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg ${categoryInfo.bgLight} ${categoryInfo.bgDark} ${categoryInfo.textColor}`}>
+                <span>{categoryInfo.emoji}</span>
+                <span>{categoryInfo.label}</span>
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-stone-500 bg-stone-100 dark:bg-stone-800/80 px-2 py-0.5 rounded-lg">
+
+              <span className="inline-flex items-center gap-1 text-[11px] font-mono text-stone-500 bg-stone-100 dark:bg-stone-800/80 px-2.5 py-1 rounded-lg">
                 <Clock className="w-3 h-3" />
                 {task.estMinutes}m
               </span>
+
               {task.scheduledTime && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-mono text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2 py-0.5 rounded-lg font-medium">
+                <span className="inline-flex items-center gap-1 text-[11px] font-mono text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/50 px-2.5 py-1 rounded-lg font-medium">
                   @{task.scheduledTime}
                 </span>
               )}
@@ -137,25 +130,6 @@ export const TaskBriefModal: React.FC<TaskBriefModalProps> = ({ task, onClose })
 
           {/* Subtasks Section */}
           <div className="flex-1 overflow-y-auto pr-1 space-y-3 py-1">
-            <div className="flex items-center justify-between text-xs text-stone-500">
-              <span className="font-semibold text-stone-700 dark:text-stone-300">
-                Micro-Steps Checklist ({completedSubtasks}/{totalSubtasks})
-              </span>
-              <span className="font-mono text-[11px] font-bold text-teal-700 dark:text-teal-400">
-                {progressPercent}%
-              </span>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-teal-600 dark:bg-teal-500 rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 0.3 }}
-              />
-            </div>
-
             {/* Subtask list */}
             {task.subtasks.length > 0 ? (
               <div className="space-y-2 pt-1">

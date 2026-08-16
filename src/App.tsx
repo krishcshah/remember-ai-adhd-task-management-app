@@ -11,10 +11,11 @@ import { NowView } from './components/NowView';
 import { CalendarView } from './components/CalendarView';
 import { LibraryView } from './components/LibraryView';
 import { SettingsView } from './components/SettingsView';
+import { YouView } from './components/YouView';
 import { CaptureModal } from './components/CaptureModal';
 import { TaskEditModal } from './components/TaskEditModal';
 import { RepeatModal } from './components/RepeatModal';
-import { AddCategoryModal } from './components/AddCategoryModal';
+import { AiContextModal } from './components/AiContextModal';
 import { FocusTimerOverlay } from './components/FocusTimerOverlay';
 import { TaskReminderBanner } from './components/TaskReminderBanner';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -25,8 +26,6 @@ const MainLayout: React.FC = () => {
     currentTab,
     focusTask,
     stopFocus,
-    isAddCategoryOpen,
-    closeAddCategoryModal,
   } = useTaskContext();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -75,6 +74,17 @@ const MainLayout: React.FC = () => {
             >
               <SettingsView />
             </motion.div>
+          ) : currentTab === 'you' ? (
+            <motion.div
+              key="tab-you"
+              initial={{ opacity: 0, y: 8, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="flex-1 flex flex-col w-full"
+            >
+              <YouView />
+            </motion.div>
           ) : (
             <motion.div
               key="tab-calendar"
@@ -102,11 +112,8 @@ const MainLayout: React.FC = () => {
       {/* Repeat Schedule Modal */}
       <RepeatModal />
 
-      {/* Add Custom Category Modal */}
-      <AddCategoryModal
-        isOpen={isAddCategoryOpen}
-        onClose={closeAddCategoryModal}
-      />
+      {/* AI Life Context Modal */}
+      <AiContextModal />
 
       {/* Fullscreen Playlist Focus Timer */}
       <AnimatePresence>

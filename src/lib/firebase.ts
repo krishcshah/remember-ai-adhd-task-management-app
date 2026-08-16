@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
 import config from '../../firebase-applet-config.json';
-import { Task, CategoryMeta, Settings } from '../types';
+import { Task, Settings } from '../types';
 
 const firebaseConfig = {
   apiKey: config.apiKey,
@@ -119,15 +119,6 @@ export async function syncSettingsToCloud(userId: string | null, settings: Setti
     await setDoc(doc(db, parentPath), { settings, updatedAt: new Date().toISOString() }, { merge: true });
   } catch (err) {
     console.warn('Cloud settings sync warning:', err);
-  }
-}
-
-export async function syncCategoriesToCloud(userId: string | null, categories: Record<string, CategoryMeta>) {
-  try {
-    const parentPath = userId ? `users/${userId}` : `devices/${getOrCreateDeviceId()}`;
-    await setDoc(doc(db, parentPath), { categories, updatedAt: new Date().toISOString() }, { merge: true });
-  } catch (err) {
-    console.warn('Cloud categories sync warning:', err);
   }
 }
 

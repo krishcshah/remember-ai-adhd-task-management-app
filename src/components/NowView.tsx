@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES } from '../types';
 import {
   Play,
   CheckCircle2,
@@ -22,7 +21,6 @@ export const NowView: React.FC = () => {
   const {
     activeTask,
     tasks,
-    categories,
     setActiveTaskId,
     toggleSubtask,
     setTaskDone,
@@ -92,15 +90,6 @@ export const NowView: React.FC = () => {
     );
   }
 
-  const categoryMeta =
-    categories[activeTask.category] ||
-    DEFAULT_CATEGORIES[activeTask.category] ||
-    DEFAULT_CATEGORIES.other;
-
-  const completedSubtasksCount = activeTask.subtasks.filter((s) => s.done).length;
-  const totalSubtasks = activeTask.subtasks.length;
-  const progressPercent = totalSubtasks > 0 ? (completedSubtasksCount / totalSubtasks) * 100 : 0;
-
   // Format repeat label for the badge
   const getRepeatLabel = () => {
     if (activeTask.repeatType === 'daily' || activeTask.repeatDaily) return 'Daily';
@@ -119,20 +108,16 @@ export const NowView: React.FC = () => {
       {/* Top Navigator & Position Badge */}
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto no-scrollbar py-0.5">
-          <span
-            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${categoryMeta.bgLight} ${categoryMeta.bgDark} ${categoryMeta.borderColor} ${categoryMeta.textColor} flex items-center gap-1.5 shrink-0 whitespace-nowrap`}
-          >
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: categoryMeta.dotColor }}
-            />
-            {categoryMeta.label}
-          </span>
-
           <span className="text-xs font-mono text-stone-600 dark:text-stone-300 bg-stone-200/80 dark:bg-stone-800 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
             <Clock className="w-3 h-3 shrink-0" />
             ~{activeTask.estMinutes}m
           </span>
+
+          {activeTask.scheduledTime && (
+            <span className="text-xs font-mono text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800 px-2.5 py-1 rounded-full flex items-center gap-1 shrink-0 whitespace-nowrap">
+              @{activeTask.scheduledTime}
+            </span>
+          )}
 
           {/* Small Repeat Badge / Button */}
           <motion.button
@@ -222,30 +207,8 @@ export const NowView: React.FC = () => {
               </p>
             )}
 
-            {/* Subtask Progress Header */}
-            <div className="flex items-center justify-between text-xs font-medium text-stone-500 dark:text-stone-400 mb-2 mt-2">
-              <span className="font-display font-semibold text-stone-700 dark:text-stone-300">
-                {totalSubtasks > 0 ? 'Playlist Steps' : 'Steps'}
-              </span>
-              <span className="font-mono">
-                {completedSubtasksCount}/{totalSubtasks} done
-              </span>
-            </div>
-
-            {/* Progress Bar */}
-            {totalSubtasks > 0 && (
-              <div className="w-full bg-stone-100 dark:bg-stone-800 h-1.5 rounded-full overflow-hidden mb-3">
-                <motion.div
-                  className="bg-teal-600 dark:bg-teal-500 h-full rounded-full"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progressPercent}%` }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                />
-              </div>
-            )}
-
             {/* Subtasks Checklist */}
-            <div className="relative">
+            <div className="relative mt-2">
               <div className="space-y-2 max-h-[220px] sm:max-h-[250px] overflow-y-auto no-scrollbar pb-3 scroll-smooth">
                 {activeTask.subtasks.map((sub) => (
                   <motion.div
@@ -372,34 +335,25 @@ export const NowView: React.FC = () => {
                 className="overflow-hidden"
               >
                 <div className="px-4 pb-3 pt-1 space-y-2 border-t border-stone-100 dark:border-stone-800/60">
-                  {upNextTasks.map((task) => {
-                    const catMeta = categories[task.category] || DEFAULT_CATEGORIES[task.category] || DEFAULT_CATEGORIES.other;
-                    return (
-                      <motion.div
-                        key={task.id}
-                        whileHover={{ scale: 1.01 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          setActiveTaskId(task.id);
-                          setIsUpNextExpanded(false);
-                        }}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-stone-200/60 dark:border-stone-700 cursor-pointer transition-all group"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: catMeta.dotColor }}
-                          />
-                          <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
-                            {task.title}
-                          </span>
-                        </div>
-                        <span className="text-[11px] font-mono text-stone-500 group-hover:text-teal-700 dark:group-hover:text-teal-300">
-                          Switch ➔
-                        </span>
-                      </motion.div>
-                    );
-                  })}
+                  {upNextTasks.map((task) => (
+                    <motion.div
+                      key={task.id}
+                      whileHover={{ scale: 1.01 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setActiveTaskId(task.id);
+                        setIsUpNextExpanded(false);
+                      }}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-white dark:bg-stone-800 hover:bg-teal-50 dark:hover:bg-teal-950/40 border border-stone-200/60 dark:border-stone-700 cursor-pointer transition-all group"
+                    >
+                      <span className="text-xs font-medium text-stone-800 dark:text-stone-200 truncate">
+                        {task.title}
+                      </span>
+                      <span className="text-[11px] font-mono text-stone-500 group-hover:text-teal-700 dark:group-hover:text-teal-300">
+                        Switch ➔
+                      </span>
+                    </motion.div>
+                  ))}
                 </div>
               </motion.div>
             )}

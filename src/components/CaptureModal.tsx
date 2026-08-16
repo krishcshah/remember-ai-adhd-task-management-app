@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, TaskCategory, RepeatType, CategoryMeta } from '../types';
+import { RepeatType, CATEGORIES, getCategoryInfo } from '../types';
 import {
   X,
   Sparkles,
@@ -14,7 +14,7 @@ import {
   Repeat,
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
-import { detectScheduledDateAndTime } from '../utils/aiFallback';
+import { detectScheduledDateAndTime, detectCategory } from '../utils/aiFallback';
 
 const DAYS_OF_WEEK = [
   { id: 1, label: 'Mon' },
@@ -31,8 +31,6 @@ export const CaptureModal: React.FC = () => {
     isCaptureOpen,
     closeCapture,
     captureInitialTab,
-    categories,
-    openAddCategoryModal,
     addTask,
     addMultipleTasks,
     requestBreakdown,
@@ -45,7 +43,7 @@ export const CaptureModal: React.FC = () => {
 
   // Quick Add State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<TaskCategory>('work');
+  const [category, setCategory] = useState<string>('other');
   const [scheduledDate, setScheduledDate] = useState<string | null>(getTodayDateString());
   const [scheduledTime, setScheduledTime] = useState<string>('');
   const [repeatType, setRepeatType] = useState<RepeatType>('none');
@@ -62,7 +60,7 @@ export const CaptureModal: React.FC = () => {
   const [extractedTasks, setExtractedTasks] = useState<
     Array<{
       title: string;
-      category: TaskCategory;
+      category?: string;
       scheduledDate?: string | null;
       scheduledTime?: string | null;
       estimatedMinutes: number;
@@ -78,7 +76,7 @@ export const CaptureModal: React.FC = () => {
   useEffect(() => {
     if (!isCaptureOpen) {
       setTitle('');
-      setCategory('work');
+      setCategory('other');
       setScheduledDate(getTodayDateString());
       setScheduledTime('');
       setRepeatType('none');
@@ -142,10 +140,11 @@ export const CaptureModal: React.FC = () => {
     const isDaily = repeatType === 'daily';
     const finalDate = detectedDate !== null ? detectedDate : (isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate);
     const finalTime = (detectedTime || scheduledTime).trim() || null;
+    const detectedCat = category !== 'other' ? category : detectCategory(cleanTitle);
 
     addTask({
       title: cleanTitle,
-      category,
+      category: detectedCat || 'other',
       estMinutes: estTotalMinutes || 15,
       scheduledDate: finalDate,
       scheduledTime: finalTime,
@@ -173,13 +172,13 @@ export const CaptureModal: React.FC = () => {
     setIsMagicSaving(true);
 
     let finalTitle = title.trim();
-    let finalCategory = category;
     let finalEstMinutes = estTotalMinutes || 15;
     let finalRepeatType = repeatType;
     let finalRepeatDays = repeatDays;
     let finalSubtasks = subtasks;
     let finalScheduledDate = scheduledDate;
     let finalScheduledTime = scheduledTime.trim() || null;
+    let finalCategory = category || 'other';
 
     try {
       const existingSubs = subtasks
@@ -187,7 +186,7 @@ export const CaptureModal: React.FC = () => {
         .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
 
       // Race with 3.5s timeout for ultra fast executive response
-      const aiPromise = requestBreakdown(title, undefined, notes, category, existingSubs);
+      const aiPromise = requestBreakdown(title, undefined, notes, finalCategory, existingSubs);
       const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
 
       const res = await Promise.race([aiPromise, timeoutPromise]);
@@ -286,7 +285,7 @@ export const CaptureModal: React.FC = () => {
       .filter((t) => t && typeof t === 'object' && String(t.title || '').trim().length > 0)
       .map((t, idx) => ({
         title: String(t.title).trim(),
-        category: (t.category as TaskCategory) || 'other',
+        category: t.category || 'other',
         estMinutes: Math.max(1, Number(t.estimatedMinutes) || 15),
         scheduledDate: t.scheduledDate !== undefined && t.scheduledDate !== null ? t.scheduledDate : targetDate,
         scheduledTime: t.scheduledTime || null,
@@ -304,10 +303,9 @@ export const CaptureModal: React.FC = () => {
     if (payload.length > 0) {
       addMultipleTasks(payload);
     }
+
     closeCapture();
   };
-
-  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
     <AnimatePresence>
@@ -395,6 +393,30 @@ export const CaptureModal: React.FC = () => {
                 />
               </div>
 
+              {/* Category selector */}
+              <div>
+                <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
+                  Category
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {CATEGORIES.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategory(cat.id)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                        category === cat.id
+                          ? 'bg-teal-800 text-white shadow-xs'
+                          : 'bg-stone-100 dark:bg-stone-800/80 text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700 border border-stone-200/60 dark:border-stone-700/60'
+                      }`}
+                    >
+                      <span>{cat.emoji}</span>
+                      <span>{cat.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Repeat Options */}
               <div className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/60 border border-stone-200/80 dark:border-stone-700/80 space-y-2.5">
                 <div className="flex items-center gap-2">
@@ -474,39 +496,6 @@ export const CaptureModal: React.FC = () => {
                     })}
                   </div>
                 )}
-              </div>
-
-              {/* Category selector with + Add Category */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
-                    Category
-                  </label>
-                  <button
-                    type="button"
-                    onClick={openAddCategoryModal}
-                    className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> New Category
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.values(allCategories).map((cat) => (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategory(cat.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
-                        category === cat.id
-                          ? `${cat.bgLight} ${cat.bgDark} ${cat.borderColor} ${cat.textColor} ring-2 ring-teal-600/20`
-                          : 'bg-stone-50 dark:bg-stone-800/60 border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-400'
-                      }`}
-                    >
-                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.dotColor }} />
-                      {cat.label}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               {/* Schedule Date & Time */}
@@ -782,7 +771,6 @@ export const CaptureModal: React.FC = () => {
 
                   <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                     {extractedTasks.map((t, idx) => {
-                      const meta = allCategories[t.category] || allCategories.other || DEFAULT_CATEGORIES.other;
                       return (
                         <div
                           key={idx}
@@ -793,12 +781,7 @@ export const CaptureModal: React.FC = () => {
                               {t.title}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
-                              >
-                                {meta.label}
-                              </span>
-                              <span className="text-[10px] font-mono text-stone-500">
+                              <span className="text-[10px] font-mono text-stone-500 dark:text-stone-400">
                                 ~{t.estimatedMinutes}m
                               </span>
                               {t.subtasks && (

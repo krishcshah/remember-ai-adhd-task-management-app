@@ -1,4 +1,4 @@
-import { Task, TaskCategory, RepeatType } from '../types';
+import { Task, RepeatType } from '../types';
 
 /**
  * Normalizes any subtask representation returned by AI or heuristic fallback
@@ -86,7 +86,7 @@ export function detectEmoji(text: string): string {
 }
 
 // Helper to guess category from keywords
-export function detectCategory(text: string): TaskCategory {
+export function detectCategory(text: string): string {
   const lower = text.toLowerCase();
   if (/doctor|dentist|pill|medicine|vitamin|workout|run|gym|therapy|walk|stretch|hydrate|sleep|water|meal|cook|vet/.test(lower)) {
     return 'health';
@@ -234,12 +234,12 @@ export function fallbackBreakdown(
   title: string,
   difficulty?: 1 | 2 | 3,
   _notes?: string,
-  suggestedCategory?: TaskCategory,
+  suggestedCategory?: string,
   existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>,
   baseDateIso?: string
 ): {
   title: string;
-  category: TaskCategory;
+  category?: string;
   scheduledDate?: string | null;
   scheduledTime?: string | null;
   repeatType: RepeatType;
@@ -328,7 +328,7 @@ export function fallbackBreakdown(
 // Fallback Brain Dump extraction
 export function fallbackBrainDump(text: string, baseDateIso?: string): {
   title: string;
-  category: TaskCategory;
+  category?: string;
   scheduledDate?: string | null;
   scheduledTime?: string | null;
   estimatedMinutes: number;
@@ -400,7 +400,7 @@ export function fallbackChatEdit(
   instruction: string
 ): {
   title: string;
-  category: TaskCategory;
+  category?: string;
   estimatedMinutes: number;
   subtasks: { title: string; estimatedMinutes: number }[];
 } {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, TaskCategory, Subtask, RepeatType, CategoryMeta } from '../types';
+import { Subtask, RepeatType, CATEGORIES, getCategoryInfo } from '../types';
 import {
   X,
   Sparkles,
@@ -16,7 +16,6 @@ import {
   Scissors,
   Zap,
   MessageSquareText,
-  Tag,
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
 import { normalizeAiSubtasks } from '../utils/aiFallback';
@@ -36,8 +35,6 @@ export const TaskEditModal: React.FC = () => {
     isEditOpen,
     closeEdit,
     editingTask,
-    categories,
-    openAddCategoryModal,
     updateTask,
     deleteTask,
     startFocus,
@@ -47,7 +44,7 @@ export const TaskEditModal: React.FC = () => {
   } = useTaskContext();
 
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<TaskCategory>('work');
+  const [category, setCategory] = useState<string>('other');
   const [scheduledDate, setScheduledDate] = useState<string | null>(null);
   const [scheduledTime, setScheduledTime] = useState<string>('');
   const [repeatType, setRepeatType] = useState<RepeatType>('none');
@@ -60,7 +57,7 @@ export const TaskEditModal: React.FC = () => {
   useEffect(() => {
     if (editingTask) {
       setTitle(editingTask.title);
-      setCategory(editingTask.category);
+      setCategory(editingTask.category || 'other');
       setScheduledDate(editingTask.scheduledDate);
       setScheduledTime(editingTask.scheduledTime || '');
       if (editingTask.repeatType) {
@@ -100,7 +97,6 @@ export const TaskEditModal: React.FC = () => {
 
   const handleMagicSave = async () => {
     if (!editingTask || !title.trim() || isMagicSaving) return;
-    setIsMagicSaving(true);
 
     const cleanTitle = title.trim();
     const cleanNotes = notes.trim();
@@ -109,29 +105,44 @@ export const TaskEditModal: React.FC = () => {
     const cleanTime = scheduledTime.trim() || null;
     const cleanRepeatDays = repeatType === 'weekly_on' ? repeatDays : undefined;
 
-    // Check if the change is just metadata (category, date, time, pattern/repeat) or small manual edits
+    // Original values from task prior to edits
     const origTitle = (editingTask.title || '').trim();
-    const origCategory = editingTask.category;
-    const origDate = editingTask.scheduledDate || null;
-    const origTime = (editingTask.scheduledTime || '').trim() || null;
-    const origRepeatType = editingTask.repeatType || (editingTask.repeatDaily ? 'daily' : 'none');
     const origNotes = (editingTask.notes || '').trim();
-    const origSubtasksCount = (editingTask.subtasks || []).length;
+    const origSubtasks = (editingTask.subtasks || []).map((s: any) => ({
+      title: String(typeof s === 'string' ? s : (s?.title || s?.text || s?.name || '')).trim(),
+      estMinutes: Number(s?.estMinutes || s?.estimatedMinutes || 5) || 5,
+    }));
 
-    const isTitleUnchanged = cleanTitle.toLowerCase() === origTitle.toLowerCase();
-    const hasExistingSubtasks = subtasks.length > 0;
+    // Current subtasks from state
+    const currentSubtasks = subtasks
+      .map((s) => ({
+        id: s.id,
+        title: String(s.title || '').trim(),
+        estMinutes: Number(s.estMinutes) || 5,
+        done: Boolean(s.done),
+      }))
+      .filter((s) => s.title.length > 0 && s.title !== 'undefined');
 
-    // If title didn't change significantly, or user only tweaked date/time/repeat/category/duration or manual steps, skip AI call
-    const isSmallOrMetadataEdit =
-      isTitleUnchanged ||
-      (hasExistingSubtasks && subtasks.length === origSubtasksCount) ||
-      (cleanTitle.length > 0 && Math.abs(cleanTitle.length - origTitle.length) < 4);
+    // 1. Detect if any TEXT field was modified (Title, Notes, or any Subtask title line item added/edited/removed)
+    // Non-text changes (date, time, repeat, category, estMinutes, done) MUST NOT trigger AI re-run!
+    const isTitleChanged = cleanTitle !== origTitle;
+    const isNotesChanged = cleanNotes !== origNotes;
+    const isSubtaskCountChanged = currentSubtasks.length !== origSubtasks.length;
+    const areSubtaskTitlesChanged =
+      isSubtaskCountChanged ||
+      currentSubtasks.some((st, i) => {
+        const orig = origSubtasks[i];
+        return !orig || st.title !== orig.title;
+      });
 
-    if (isSmallOrMetadataEdit) {
-      // Perform direct instant save without AI latency or unexpected overrides
+    const hasTextChanged = isTitleChanged || isNotesChanged || areSubtaskTitlesChanged;
+
+    // If NO text was modified (e.g. user only altered date, time, repeat frequency, category, or subtask minutes),
+    // perform direct instant save without AI latency or unwanted overwrites
+    if (!hasTextChanged) {
       updateTask(editingTask.id, {
         title: cleanTitle,
-        category: category,
+        category: category || 'other',
         scheduledDate: cleanDate,
         scheduledTime: cleanTime,
         repeatDaily: isDaily,
@@ -139,63 +150,95 @@ export const TaskEditModal: React.FC = () => {
         repeatDays: cleanRepeatDays,
         notes: cleanNotes || undefined,
         estMinutes: estMinutes || 20,
-        subtasks: subtasks.map((s, idx) => ({
+        subtasks: currentSubtasks.map((s, idx) => ({
           id: s.id || `sub-${Date.now()}-${idx}`,
-          title: s.title && s.title !== 'undefined' ? s.title : `Action step ${idx + 1}`,
-          estMinutes: Number(s.estMinutes) || 5,
-          done: Boolean(s.done),
+          title: s.title,
+          estMinutes: s.estMinutes,
+          done: s.done,
         })),
       });
 
-      setIsMagicSaving(false);
       closeEdit();
       return;
     }
 
+    // 2. TEXT WAS MODIFIED: Trigger AI breakdown/polish to rewrite/fix spelling & polish modified text lines
+    setIsMagicSaving(true);
+
     let finalTitle = cleanTitle;
-    let finalCategory = category;
     let finalEstMinutes = estMinutes || 20;
     let finalRepeatType = repeatType;
     let finalRepeatDays = repeatDays;
-    let finalSubtasks = subtasks;
     let finalScheduledDate = cleanDate;
     let finalScheduledTime = cleanTime;
+    let finalSubtasks = currentSubtasks;
+    let finalCategory = category || 'other';
 
     try {
-      const existingSubs = subtasks
-        .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
-        .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
+      // Pass the current subtask list (with the user's updated text) as existing steps for AI context
+      const existingSubsForAi = currentSubtasks.map((s) => ({
+        title: s.title,
+        estimatedMinutes: s.estMinutes,
+      }));
 
-      const res = await requestBreakdown(finalTitle, undefined, notes, finalCategory, existingSubs);
+      const res = await requestBreakdown(
+        finalTitle,
+        undefined,
+        cleanNotes || undefined,
+        finalCategory,
+        existingSubsForAi.length > 0 ? existingSubsForAi : undefined
+      );
 
-      if (res.title) finalTitle = res.title;
-      if (res.category) finalCategory = res.category;
-      if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
-      if (res.scheduledDate !== undefined && res.scheduledDate !== null) {
-        finalScheduledDate = res.scheduledDate;
-      }
-      if (res.scheduledTime !== undefined && res.scheduledTime !== null) {
-        finalScheduledTime = res.scheduledTime;
-      }
-      if (res.repeatType) {
-        finalRepeatType = res.repeatType;
-        if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
-          finalRepeatDays = res.repeatDays;
+      if (res) {
+        if (res.title && typeof res.title === 'string' && res.title.trim()) {
+          finalTitle = res.title.trim();
+        }
+
+        // Apply AI refined/polished subtasks
+        if (res.subtasks && Array.isArray(res.subtasks) && res.subtasks.length > 0) {
+          const normalized = normalizeAiSubtasks(res.subtasks, finalTitle);
+          if (normalized.length > 0) {
+            finalSubtasks = normalized.map((s, idx) => {
+              const wasDone = Boolean(currentSubtasks[idx]?.done);
+              return {
+                id: currentSubtasks[idx]?.id || `edit-sub-${Date.now()}-${idx}`,
+                title: s.title,
+                estMinutes: s.estimatedMinutes || 5,
+                done: wasDone,
+              };
+            });
+          }
+        }
+
+        if (res.estimatedMinutes && Number(res.estimatedMinutes) > 0) {
+          finalEstMinutes = Number(res.estimatedMinutes);
+        } else if (finalSubtasks.length > 0) {
+          finalEstMinutes = finalSubtasks.reduce((sum, s) => sum + s.estMinutes, 0);
+        }
+
+        // Keep the user's manually set date/time/repeat unless not set
+        const userExplicitlyChangedDate = scheduledDate !== editingTask.scheduledDate;
+        const userExplicitlyChangedTime = (scheduledTime || '') !== (editingTask.scheduledTime || '');
+        const origRepeat = editingTask.repeatType || (editingTask.repeatDaily ? 'daily' : 'none');
+        const userExplicitlyChangedRepeat = repeatType !== origRepeat;
+
+        if (!userExplicitlyChangedDate && res.scheduledDate !== undefined && res.scheduledDate !== null) {
+          finalScheduledDate = res.scheduledDate;
+        }
+        if (!userExplicitlyChangedTime && res.scheduledTime !== undefined && res.scheduledTime !== null) {
+          finalScheduledTime = res.scheduledTime;
+        }
+        if (!userExplicitlyChangedRepeat && res.repeatType) {
+          finalRepeatType = res.repeatType;
+          if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
+            finalRepeatDays = res.repeatDays;
+          }
         }
       }
-
-      // If user had no subtasks or existing was empty, populate from AI
-      if (existingSubs.length === 0 && res.subtasks && res.subtasks.length > 0) {
-        const normalized = normalizeAiSubtasks(res.subtasks, finalTitle);
-        finalSubtasks = normalized.map((s, idx) => ({
-          id: `edit-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-          done: false,
-        }));
-      }
     } catch (err) {
-      console.warn('AI breakdown fallback in EditModal:', err);
+      console.warn('AI breakdown in EditModal failed, falling back:', err);
+    } finally {
+      setIsMagicSaving(false);
     }
 
     const isFinalDaily = finalRepeatType === 'daily';
@@ -218,7 +261,6 @@ export const TaskEditModal: React.FC = () => {
       })),
     });
 
-    setIsMagicSaving(false);
     closeEdit();
   };
 
@@ -239,8 +281,6 @@ export const TaskEditModal: React.FC = () => {
       },
     ]);
   };
-
-  const allCategories: Record<string, CategoryMeta> = { ...DEFAULT_CATEGORIES, ...categories };
 
   return (
     <AnimatePresence>
@@ -337,34 +377,25 @@ export const TaskEditModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Category with + Add Category button */}
+          {/* Category Chips */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider">
-                Category
-              </label>
-              <button
-                type="button"
-                onClick={openAddCategoryModal}
-                className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" /> New Category
-              </button>
-            </div>
+            <label className="block text-xs font-bold text-stone-600 dark:text-stone-400 uppercase tracking-wider mb-1.5">
+              Category
+            </label>
             <div className="flex flex-wrap gap-1.5">
-              {Object.values(allCategories).map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => setCategory(cat.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                     category === cat.id
-                      ? `${cat.bgLight} ${cat.bgDark} ${cat.borderColor} ${cat.textColor} ring-2 ring-teal-600/20`
-                      : 'bg-stone-50 dark:bg-stone-900 border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-400'
+                      ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-xs'
+                      : 'bg-stone-100 dark:bg-stone-800/80 text-stone-600 dark:text-stone-300 hover:bg-stone-200/80 dark:hover:bg-stone-700 border border-stone-200/60 dark:border-stone-700/60'
                   }`}
                 >
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.dotColor }} />
-                  {cat.label}
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
                 </button>
               ))}
             </div>
