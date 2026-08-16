@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { Calendar as CalendarIcon, User, Plus, CheckSquare } from 'lucide-react';
+import { Calendar as CalendarIcon, Sparkles, Plus, CheckSquare } from 'lucide-react';
 import { ActiveTab } from '../types';
 
 export const BottomNav: React.FC = () => {
@@ -49,7 +49,7 @@ export const BottomNav: React.FC = () => {
               : 'text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200'
           }`}
         >
-          <User className="w-5 h-5 stroke-[2.2px]" />
+          <Sparkles className="w-5 h-5 stroke-[2.2px] text-amber-500 dark:text-amber-400" />
           <span className="text-xs tracking-tight font-medium">You</span>
         </motion.button>
       </div>

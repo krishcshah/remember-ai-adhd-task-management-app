@@ -15,7 +15,7 @@ import {
   ChevronDown,
   Repeat,
   Paperclip,
-  User,
+  Sparkles,
 } from 'lucide-react';
 import { getTodayDateString, isTaskScheduledForDate, formatLocalDateToIso } from '../utils/storage';
 import { TaskBriefModal } from './TaskBriefModal';
@@ -177,14 +177,18 @@ export const CalendarView: React.FC = () => {
     <div className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-1 pb-24 space-y-3">
       {/* Top Header Bar: Reference clean style */}
       <div className="flex items-center justify-between pt-1 pb-1">
-        {/* Left icon / quick action */}
-        <button
-          onClick={handleGoToday}
-          className="p-2 rounded-xl text-teal-800 dark:text-teal-400 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
-          title="Jump to Today"
+        {/* Left: Attachment button opens AI Brain Dump */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.08 }}
+          onClick={() => openCapture('braindump')}
+          className="p-2 rounded-xl text-teal-800 dark:text-teal-400 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer relative group"
+          title="Open Brain Dump & Quick Capture"
+          aria-label="Brain Dump"
         >
           <Paperclip className="w-5 h-5 rotate-45" />
-        </button>
+          <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-amber-400 border border-white dark:border-stone-900" />
+        </motion.button>
 
         {/* Center: Selected Date & View Switcher */}
         <div className="flex items-center gap-2">
@@ -200,15 +204,17 @@ export const CalendarView: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: You (Profile & Settings) */}
-        <button
+        {/* Right: You (Profile & Settings) with attractive badge */}
+        <motion.button
+          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.06 }}
           onClick={() => setCurrentTab('settings')}
-          className="p-2 rounded-xl text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+          className="flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-tr from-teal-800 to-teal-600 dark:from-teal-700 dark:to-teal-500 text-amber-300 shadow-xs hover:shadow-md transition-all cursor-pointer border border-teal-600/50"
           title="Open You"
           aria-label="You"
         >
-          <User className="w-5 h-5" />
-        </button>
+          <Sparkles className="w-4.5 h-4.5" />
+        </motion.button>
       </div>
 
       {/* Week / Month Calendar Strip (Compact & Ultra Low Height) */}
