@@ -7,21 +7,27 @@ export const BottomNav: React.FC = () => {
   const { currentTab, setCurrentTab, openCapture } = useTaskContext();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 dark:bg-stone-900/90 backdrop-blur-xl border-t border-stone-200/80 dark:border-stone-800 safe-bottom select-none">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-stone-900/95 dark:bg-stone-900/95 backdrop-blur-xl border-t border-stone-800 safe-bottom select-none">
       <div className="max-w-md mx-auto px-4 py-2 relative flex items-center justify-between h-14">
         {/* Left: Tasks Tab */}
         <div className="flex-1 flex justify-center">
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentTab('calendar')}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap text-white ${
               currentTab === 'calendar'
-                ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-white font-bold shadow-sm'
-                : 'text-teal-800 dark:text-teal-300 hover:bg-teal-50/50 dark:hover:bg-teal-950/30'
+                ? 'bg-teal-900/70 border border-teal-600/40 shadow-sm'
+                : 'hover:bg-stone-800/60'
             }`}
           >
-            <CheckSquare className="w-4.5 h-4.5 stroke-[2.2px] shrink-0 text-teal-800 dark:text-teal-300" />
-            <span>Tasks</span>
+            <CheckSquare
+              className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
+                currentTab === 'calendar'
+                  ? 'text-teal-400'
+                  : 'text-white'
+              }`}
+            />
+            <span className="text-white">Tasks</span>
           </motion.button>
         </div>
 
@@ -32,7 +38,7 @@ export const BottomNav: React.FC = () => {
             whileTap={{ scale: 0.92 }}
             onClick={() => openCapture('quick')}
             aria-label="Add task or brain dump"
-            className="w-12.5 h-12.5 rounded-full bg-teal-800 dark:bg-teal-700 text-teal-50 flex items-center justify-center shadow-lg shadow-teal-900/25 hover:shadow-xl transition-shadow border-2 border-teal-600/40 dark:border-teal-500/40 cursor-pointer"
+            className="w-12.5 h-12.5 rounded-full bg-teal-600 hover:bg-teal-500 text-white flex items-center justify-center shadow-lg shadow-teal-950/40 hover:shadow-xl transition-all border-2 border-teal-400/40 cursor-pointer"
           >
             <Plus className="w-6 h-6 stroke-[2.8px]" />
           </motion.button>
@@ -43,18 +49,20 @@ export const BottomNav: React.FC = () => {
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentTab('settings')}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap text-white ${
               currentTab === 'settings'
-                ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-white font-bold shadow-sm'
-                : 'text-teal-800/80 dark:text-stone-300 hover:text-teal-800 dark:hover:text-white hover:bg-teal-50/50 dark:hover:bg-teal-950/30'
+                ? 'bg-teal-900/70 border border-teal-600/40 shadow-sm'
+                : 'hover:bg-stone-800/60'
             }`}
           >
-            <Sparkles className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
-              currentTab === 'settings'
-                ? 'text-teal-800 dark:text-teal-300'
-                : 'text-teal-800/80 dark:text-stone-300'
-            }`} />
-            <span>You</span>
+            <Sparkles
+              className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
+                currentTab === 'settings'
+                  ? 'text-teal-400'
+                  : 'text-white'
+              }`}
+            />
+            <span className="text-white">You</span>
           </motion.button>
         </div>
       </div>

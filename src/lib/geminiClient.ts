@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 function getClientApiKey(): string | null {
   // 1. Check local storage user configured key
@@ -78,8 +78,7 @@ async function callDirectGemini(prompt: string, responseSchema?: any): Promise<a
 
   const modelsToTry = [
     "gemini-3.7-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest"
   ];
 
@@ -89,7 +88,10 @@ async function callDirectGemini(prompt: string, responseSchema?: any): Promise<a
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config: responseSchema ? { responseMimeType: "application/json", responseSchema } : undefined,
+        config: {
+          ...(responseSchema ? { responseMimeType: "application/json", responseSchema } : {}),
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
       });
       return parseGeminiJSON(response.text);
     } catch (err: any) {

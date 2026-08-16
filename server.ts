@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -64,10 +64,14 @@ async function generateGeminiContent(
 ) {
   const modelsToTry = [
     "gemini-3.7-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
+    "gemini-3.1-flash-lite",
     "gemini-flash-latest",
   ];
+
+  const mergedConfig = {
+    ...config,
+    thinkingConfig: config?.thinkingConfig || { thinkingLevel: ThinkingLevel.LOW },
+  };
 
   let lastError: any = null;
   for (const model of modelsToTry) {
@@ -75,7 +79,7 @@ async function generateGeminiContent(
       const response = await ai.models.generateContent({
         model,
         contents: prompt,
-        config,
+        config: mergedConfig,
       });
       return { response, modelUsed: model };
     } catch (err: any) {

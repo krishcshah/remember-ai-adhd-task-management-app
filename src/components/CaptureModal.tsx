@@ -129,7 +129,35 @@ export const CaptureModal: React.FC = () => {
     if (total > 0) setEstTotalMinutes(total);
   };
 
-  // Magic Save: runs AI breakdown if needed then immediately saves
+  // Direct Save (Instant 0ms save without waiting for AI)
+  const handleDirectSave = () => {
+    if (!title.trim()) return;
+    const cleanTitle = title.trim();
+    const isDaily = repeatType === 'daily';
+
+    addTask({
+      title: cleanTitle,
+      category,
+      estMinutes: estTotalMinutes || 15,
+      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
+      scheduledTime: scheduledTime.trim() || null,
+      repeatDaily: isDaily,
+      repeatType,
+      repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
+      status: 'todo',
+      notes: notes.trim() || undefined,
+      subtasks: subtasks.map((s) => ({
+        id: s.id,
+        title: s.title,
+        estMinutes: s.estMinutes,
+        done: false,
+      })),
+    });
+
+    closeCapture();
+  };
+
+  // Magic Save: runs fast AI breakdown then immediately saves
   const [isMagicSaving, setIsMagicSaving] = useState(false);
 
   const handleMagicSave = async () => {
@@ -148,26 +176,31 @@ export const CaptureModal: React.FC = () => {
         .filter((s) => s.title && s.title.trim() && s.title !== 'undefined')
         .map((s) => ({ title: s.title.trim(), estimatedMinutes: s.estMinutes }));
 
-      // Run AI breakdown to enrich task
-      const res = await requestBreakdown(title, undefined, notes, category, existingSubs);
+      // Race with 3.5s timeout for ultra fast executive response
+      const aiPromise = requestBreakdown(title, undefined, notes, category, existingSubs);
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500));
 
-      if (res.title) finalTitle = res.title;
-      if (res.category) finalCategory = res.category;
-      if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
-      if (res.repeatType) {
-        finalRepeatType = res.repeatType;
-        if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
-          finalRepeatDays = res.repeatDays;
+      const res = await Promise.race([aiPromise, timeoutPromise]);
+
+      if (res) {
+        if (res.title) finalTitle = res.title;
+        if (res.category) finalCategory = res.category;
+        if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
+        if (res.repeatType) {
+          finalRepeatType = res.repeatType;
+          if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
+            finalRepeatDays = res.repeatDays;
+          }
         }
-      }
 
-      // If user had not already manually created steps, use the AI generated subtasks
-      if (existingSubs.length === 0 && res.subtasks && res.subtasks.length > 0) {
-        finalSubtasks = res.subtasks.map((s, idx) => ({
-          id: `new-sub-${Date.now()}-${idx}`,
-          title: s.title,
-          estMinutes: s.estimatedMinutes,
-        }));
+        // If user had not already manually created steps, use the AI generated subtasks
+        if (existingSubs.length === 0 && res.subtasks && res.subtasks.length > 0) {
+          finalSubtasks = res.subtasks.map((s, idx) => ({
+            id: `new-sub-${Date.now()}-${idx}`,
+            title: s.title,
+            estMinutes: s.estimatedMinutes,
+          }));
+        }
       }
     } catch (err) {
       console.warn('AI breakdown fell back gracefully on save:', err);
@@ -790,25 +823,37 @@ export const CaptureModal: React.FC = () => {
 
             {/* Footer for Quick Add */}
             {activeTab === 'quick' && (
-              <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-end gap-3 bg-stone-50/50 dark:bg-stone-900/50">
+              <div className="p-4 border-t border-stone-200/70 dark:border-stone-800 flex items-center justify-between gap-3 bg-stone-50/50 dark:bg-stone-900/50">
                 <button
                   type="button"
                   onClick={closeCapture}
-                  className="px-4 py-2.5 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 cursor-pointer"
+                  className="px-3 py-2 text-xs font-semibold text-stone-600 dark:text-stone-400 hover:text-stone-900 cursor-pointer"
                 >
                   Cancel
                 </button>
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  onClick={handleMagicSave}
-                  disabled={!title.trim() || isMagicSaving}
-                  className="py-2.5 px-6 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-display font-bold text-sm flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-                >
-                  <Sparkles className={`w-4 h-4 ${isMagicSaving ? 'animate-spin' : ''}`} />
-                  <span>{isMagicSaving ? 'Magic Saving...' : 'Magic Save'}</span>
-                </motion.button>
+                <div className="flex items-center gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    type="button"
+                    onClick={handleDirectSave}
+                    disabled={!title.trim() || isMagicSaving}
+                    className="py-2 px-4 rounded-xl bg-stone-200 hover:bg-stone-300 dark:bg-stone-800 dark:hover:bg-stone-700 text-stone-800 dark:text-stone-200 font-semibold text-xs transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    Save Directly
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    onClick={handleMagicSave}
+                    disabled={!title.trim() || isMagicSaving}
+                    className="py-2 px-5 rounded-xl bg-teal-800 hover:bg-teal-900 text-amber-300 font-display font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <Sparkles className={`w-3.5 h-3.5 ${isMagicSaving ? 'animate-spin' : ''}`} />
+                    <span>{isMagicSaving ? 'Enriching...' : 'Magic Save'}</span>
+                  </motion.button>
+                </div>
               </div>
             )}
           </motion.div>
