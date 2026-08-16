@@ -14,10 +14,10 @@ export const BottomNav: React.FC = () => {
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentTab('calendar')}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap text-white ${
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl cursor-pointer font-semibold text-xs whitespace-nowrap text-white transition-colors duration-150 ${
               currentTab === 'calendar'
-                ? 'bg-teal-900/70 border border-teal-600/40 shadow-sm'
-                : 'hover:bg-stone-800/60'
+                ? 'bg-teal-900/70 shadow-sm'
+                : 'bg-transparent hover:bg-stone-800/60'
             }`}
           >
             <CheckSquare
@@ -49,10 +49,10 @@ export const BottomNav: React.FC = () => {
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setCurrentTab('settings')}
-            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap text-white ${
+            className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl cursor-pointer font-semibold text-xs whitespace-nowrap text-white transition-colors duration-150 ${
               currentTab === 'settings'
-                ? 'bg-teal-900/70 border border-teal-600/40 shadow-sm'
-                : 'hover:bg-stone-800/60'
+                ? 'bg-teal-900/70 shadow-sm'
+                : 'bg-transparent hover:bg-stone-800/60'
             }`}
           >
             <Sparkles
