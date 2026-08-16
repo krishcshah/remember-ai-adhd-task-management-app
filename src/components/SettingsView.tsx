@@ -163,10 +163,6 @@ export const SettingsView: React.FC = () => {
             <div className="w-11 h-6 bg-stone-200 peer-focus:outline-none rounded-full peer dark:bg-stone-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-stone-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-800" />
           </label>
         </div>
-
-        <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed bg-stone-50 dark:bg-stone-800/60 p-3 rounded-2xl border border-stone-200/70 dark:border-stone-700/70">
-          When enabled, as new days begin, any uncompleted tasks from past dates automatically roll over into your <strong>Today</strong> schedule with a gentle rollover note so no important task gets left behind or lost in the past.
-        </p>
       </div>
 
       {/* Life Context for AI Prompting */}
