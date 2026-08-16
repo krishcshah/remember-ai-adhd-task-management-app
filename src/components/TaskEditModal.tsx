@@ -158,6 +158,8 @@ export const TaskEditModal: React.FC = () => {
     let finalRepeatType = repeatType;
     let finalRepeatDays = repeatDays;
     let finalSubtasks = subtasks;
+    let finalScheduledDate = cleanDate;
+    let finalScheduledTime = cleanTime;
 
     try {
       const existingSubs = subtasks
@@ -169,6 +171,12 @@ export const TaskEditModal: React.FC = () => {
       if (res.title) finalTitle = res.title;
       if (res.category) finalCategory = res.category;
       if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
+      if (res.scheduledDate !== undefined && res.scheduledDate !== null) {
+        finalScheduledDate = res.scheduledDate;
+      }
+      if (res.scheduledTime !== undefined && res.scheduledTime !== null) {
+        finalScheduledTime = res.scheduledTime;
+      }
       if (res.repeatType) {
         finalRepeatType = res.repeatType;
         if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
@@ -195,8 +203,8 @@ export const TaskEditModal: React.FC = () => {
     updateTask(editingTask.id, {
       title: finalTitle,
       category: finalCategory,
-      scheduledDate: isFinalDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
-      scheduledTime: cleanTime,
+      scheduledDate: isFinalDaily ? (finalScheduledDate || getTodayDateString()) : finalScheduledDate,
+      scheduledTime: finalScheduledTime,
       repeatDaily: isFinalDaily,
       repeatType: finalRepeatType,
       repeatDays: finalRepeatType === 'weekly_on' ? finalRepeatDays : undefined,

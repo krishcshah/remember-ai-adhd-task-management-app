@@ -106,6 +106,8 @@ interface TaskContextType {
   ) => Promise<{
     title?: string;
     category: TaskCategory;
+    scheduledDate?: string | null;
+    scheduledTime?: string | null;
     repeatType?: RepeatType;
     repeatDays?: number[];
     granularity?: 1 | 2 | 3;
@@ -115,7 +117,7 @@ interface TaskContextType {
   }>;
   requestBrainDump: (
     text: string
-  ) => Promise<Array<{ title: string; category: TaskCategory; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>>;
+  ) => Promise<Array<{ title: string; category: TaskCategory; scheduledDate?: string | null; scheduledTime?: string | null; estimatedMinutes: number; subtasks?: { title: string; estimatedMinutes: number }[]; isAiGenerated?: boolean }>>;
   requestChatEdit: (
     task: Task,
     instruction: string
@@ -515,7 +517,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const toggleSubtask = useCallback((taskId: string, subtaskId: string) => {
     setTasks((prev) => {
-      const next = prev.map((t) => {
+      const next: Task[] = prev.map((t) => {
         if (t.id !== taskId) return t;
         const newSubtasks = t.subtasks.map((s) =>
           s.id === subtaskId ? { ...s, done: !s.done } : s
@@ -524,7 +526,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return {
           ...t,
           subtasks: newSubtasks,
-          status: allDone ? 'done' : 'todo',
+          status: allDone ? ('done' as const) : ('todo' as const),
           completedAt: allDone ? (t.completedAt || new Date().toISOString()) : null,
         };
       });
@@ -536,11 +538,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const setTaskDone = useCallback((taskId: string, done: boolean) => {
     setTasks((prev) => {
-      const next = prev.map((t) => {
+      const next: Task[] = prev.map((t) => {
         if (t.id !== taskId) return t;
         return {
           ...t,
-          status: done ? 'done' : 'todo',
+          status: done ? ('done' as const) : ('todo' as const),
           completedAt: done ? new Date().toISOString() : null,
           subtasks: t.subtasks.map((s) => ({ ...s, done })),
         };
@@ -620,6 +622,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) => {
       setAiLoading(true);
       setAiError(null);
+      const todayIso = getTodayDateString();
       
       try {
         // Tier 1: Try Server or Serverless API
@@ -632,6 +635,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               difficulty: difficulty || settings.difficulty || 1,
               notes,
               category,
+              currentDate: todayIso,
               context: settings.context,
               availableCategories: Object.keys(categories),
               existingSubtasks,
@@ -646,6 +650,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 title: cleanTitle,
                 category: (data.category as TaskCategory) || category || 'other',
+                scheduledDate: typeof data.scheduledDate === 'string' && data.scheduledDate.trim() ? data.scheduledDate.trim() : (data.scheduledDate === null ? null : undefined),
+                scheduledTime: typeof data.scheduledTime === 'string' && data.scheduledTime.trim() ? data.scheduledTime.trim() : (data.scheduledTime === null ? null : undefined),
                 repeatType: (data.repeatType as RepeatType) || 'none',
                 repeatDays: Array.isArray(data.repeatDays) ? data.repeatDays : undefined,
                 granularity: (data.granularity as (1 | 2 | 3)) || difficulty || 1,
@@ -666,6 +672,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               title,
               notes,
               category,
+              currentDate: todayIso,
               context: settings.context,
               availableCategories: Object.keys(categories),
               existingSubtasks,
@@ -676,6 +683,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return {
                 title: cleanTitle,
                 category: (clientData.category as TaskCategory) || category || 'other',
+                scheduledDate: typeof clientData.scheduledDate === 'string' && clientData.scheduledDate.trim() ? clientData.scheduledDate.trim() : (clientData.scheduledDate === null ? null : undefined),
+                scheduledTime: typeof clientData.scheduledTime === 'string' && clientData.scheduledTime.trim() ? clientData.scheduledTime.trim() : (clientData.scheduledTime === null ? null : undefined),
                 repeatType: (clientData.repeatType as RepeatType) || 'none',
                 repeatDays: Array.isArray(clientData.repeatDays) ? clientData.repeatDays : undefined,
                 granularity: (clientData.granularity as (1 | 2 | 3)) || difficulty || 1,
@@ -691,7 +700,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Tier 3: Intelligent offline rule-based fallback
-        const fb = fallbackBreakdown(title, difficulty, notes, category, existingSubtasks);
+        const fb = fallbackBreakdown(title, difficulty, notes, category, existingSubtasks, todayIso);
         return { ...fb, isAiGenerated: false };
       } finally {
         setAiLoading(false);
@@ -704,6 +713,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     async (text: string) => {
       setAiLoading(true);
       setAiError(null);
+      const todayIso = getTodayDateString();
       
       try {
         // Tier 1: Try Server / Serverless API
@@ -713,6 +723,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               text,
+              currentDate: todayIso,
               context: settings.context,
             }),
           });
@@ -727,6 +738,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return {
                   title: cleanTitle,
                   category: (t.category as TaskCategory) || 'other',
+                  scheduledDate: typeof t.scheduledDate === 'string' && t.scheduledDate.trim() ? t.scheduledDate.trim() : (t.scheduledDate === null ? null : undefined),
+                  scheduledTime: typeof t.scheduledTime === 'string' && t.scheduledTime.trim() ? t.scheduledTime.trim() : (t.scheduledTime === null ? null : undefined),
                   estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
                   subtasks: cleanSubtasks,
                   isAiGenerated: true,
@@ -743,6 +756,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           try {
             const clientData = await directClientBrainDump({
               text,
+              currentDate: todayIso,
               context: settings.context,
             });
             const rawTasks = clientData && Array.isArray(clientData.tasks) ? clientData.tasks : Array.isArray(clientData) ? clientData : [];
@@ -753,6 +767,8 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 return {
                   title: cleanTitle,
                   category: (t.category as TaskCategory) || 'other',
+                  scheduledDate: typeof t.scheduledDate === 'string' && t.scheduledDate.trim() ? t.scheduledDate.trim() : (t.scheduledDate === null ? null : undefined),
+                  scheduledTime: typeof t.scheduledTime === 'string' && t.scheduledTime.trim() ? t.scheduledTime.trim() : (t.scheduledTime === null ? null : undefined),
                   estimatedMinutes: Number(t.estimatedMinutes || t.estMinutes) || 15,
                   subtasks: cleanSubtasks,
                   isAiGenerated: true,
@@ -766,7 +782,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         // Tier 3: Intelligent offline fallback
-        return fallbackBrainDump(text).map((t) => ({ ...t, isAiGenerated: false }));
+        return fallbackBrainDump(text, todayIso).map((t) => ({ ...t, isAiGenerated: false }));
       } finally {
         setAiLoading(false);
       }

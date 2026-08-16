@@ -108,10 +108,18 @@ export async function directClientBreakdown(params: {
   notes?: string;
   category?: string;
   context?: string;
+  currentDate?: string;
   availableCategories?: string[];
   existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>;
   currentSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>;
 }) {
+  const todayStr =
+    params.currentDate && /^\d{4}-\d{2}-\d{2}$/.test(params.currentDate)
+      ? params.currentDate
+      : new Date().toISOString().split("T")[0];
+  const todayDateObj = new Date(todayStr + "T12:00:00Z");
+  const todayDayName = todayDateObj.toLocaleDateString("en-US", { weekday: "long" });
+
   const categoriesList =
     params.availableCategories && params.availableCategories.length > 0
       ? params.availableCategories.join(", ")
@@ -127,6 +135,8 @@ export async function directClientBreakdown(params: {
   const hasExistingSteps = subtasksToConsider.length > 0;
 
   const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
+Current Date Reference (Today): ${todayStr} (${todayDayName})
+
 ${hasExistingSteps ? `CRITICAL DIRECTIVE: The user has ALREADY entered steps/subtasks manually or is re-applying AI to an existing task.
 DO NOT discard, replace, or invent completely new unrelated steps.
 Use their existing input as primary context:
@@ -142,7 +152,7 @@ ${subtasksToConsider.map((s: any, i: number) => {
   const stepMins = Number(s?.estimatedMinutes || s?.estMinutes || 5) || 5;
   return `${i + 1}. "${stepTitle}" (~${stepMins} min)`;
 }).join("\n")}` : `When given a raw user task input, scaffold and break it down:
-1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI (e.g., "💊 Take morning vitamins", "🧹 Declutter desk", "📊 Finish quarterly budget report"). Fix any spelling mistakes.
+1. REWRITE & POLISH TITLE WITH A RELEVANT EMOJI (e.g., "💊 Take morning vitamins", "🧹 Clean bedroom", "📊 Finish quarterly budget report"). Fix any spelling mistakes.
 2. OPTIMAL SUBTASK GRANULARITY: Autonomously determine the ideal breakdown depth and micro-step durations based on the task complexity:
    - Simple routine: 3-4 bite-sized steps (1-5 min each).
    - Standard tasks: 4-6 clear, sequential action steps (5-10 min each).
@@ -151,6 +161,14 @@ ${subtasksToConsider.map((s: any, i: number) => {
 
 2. SELECT BEST CATEGORY from: [${categoriesList}]. ${params.category ? `User category: "${params.category}". Keep unless clearly wrong.` : ""}
 3. REPEAT PATTERN: "none", "daily", or "weekly_on" (with repeatDays array where 0=Sun, 1=Mon... 6=Sat).
+4. DATE & TIME EXTRACTION:
+   - If the task mentions a relative date like "tomorrow", "tmrw", "today", "tonight", "this Friday", "next Tuesday", "in 2 days", "next week":
+     * Calculate the EXACT target ISO date string YYYY-MM-DD for "scheduledDate" using Today (${todayStr}) as reference.
+     * REMOVE the date words from the output "title" so the title is clean (e.g. "🧹 Clean room").
+   - If the task mentions a time of day (e.g. "at 3pm", "10:30am", "5:00 PM", "14:00"):
+     * Extract "scheduledTime" in 24-hour "HH:MM" format (e.g. "15:00", "10:30").
+     * REMOVE the time words from the output "title".
+   - Otherwise, set "scheduledDate" and "scheduledTime" to null.
 
 Input Task: "${params.title}"
 ${params.notes ? `Notes: "${params.notes}" (Fix any spelling mistakes in notes)` : ""}
@@ -161,6 +179,8 @@ Output clean JSON in this exact structure:
 {
   "title": "Clean concise task title with emoji",
   "category": "work" | "personal" | "health" | "errands" | "study" | "other",
+  "scheduledDate": "YYYY-MM-DD" | null,
+  "scheduledTime": "HH:MM" | null,
   "repeatType": "none" | "daily" | "weekly" | "weekly_on",
   "repeatDays": [1, 3, 5],
   "granularity": 1,
@@ -174,10 +194,18 @@ Output clean JSON in this exact structure:
   return await callDirectGemini(prompt);
 }
 
-export async function directClientBrainDump(params: { text: string; context?: string }) {
+export async function directClientBrainDump(params: { text: string; context?: string; currentDate?: string }) {
+  const todayStr =
+    params.currentDate && /^\d{4}-\d{2}-\d{2}$/.test(params.currentDate)
+      ? params.currentDate
+      : new Date().toISOString().split("T")[0];
+
   const prompt = `You are Remember, an executive function assistant.
+Current Date Reference (Today): ${todayStr}
 Extract independent actionable tasks from this unstructured brain dump text.
-Output JSON: { "tasks": [ { "title": "Task title with verb", "category": "work"|"personal"|"health"|"errands"|"study"|"other", "estimatedMinutes": 15, "subtasks": [{ "title": "Subtask title", "estimatedMinutes": 5 }] } ] }
+If any item mentions a date/time (e.g. tomorrow, Friday, at 2pm), set scheduledDate (YYYY-MM-DD) and scheduledTime (HH:MM) accordingly and remove date words from title.
+
+Output JSON: { "tasks": [ { "title": "Task title with verb", "category": "work"|"personal"|"health"|"errands"|"study"|"other", "scheduledDate": "YYYY-MM-DD"|null, "scheduledTime": "HH:MM"|null, "estimatedMinutes": 15, "subtasks": [{ "title": "Subtask title", "estimatedMinutes": 5 }] } ] }
 
 Brain Dump Input:
 """

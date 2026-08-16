@@ -159,6 +159,7 @@ async function startServer() {
         context = "",
         notes = "",
         category,
+        currentDate = "",
         availableCategories = [],
         existingSubtasks = [],
         currentSubtasks = [],
@@ -176,6 +177,12 @@ async function startServer() {
         });
       }
 
+      const todayStr = currentDate && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)
+        ? currentDate
+        : new Date().toISOString().split("T")[0];
+      const todayDateObj = new Date(todayStr + "T12:00:00Z");
+      const todayDayName = todayDateObj.toLocaleDateString("en-US", { weekday: "long" });
+
       const categoriesList = Array.isArray(availableCategories) && availableCategories.length > 0
         ? availableCategories.join(", ")
         : "work, personal, health, errands, study, other";
@@ -189,6 +196,8 @@ async function startServer() {
       const hasExistingSteps = subtasksToConsider.length > 0;
 
       const prompt = `You are Remember, an expert executive-function and ADHD task assistant.
+Current Date Reference (Today): ${todayStr} (${todayDayName})
+
 ${hasExistingSteps ? `CRITICAL DIRECTIVE: The user has ALREADY entered steps/subtasks manually or is re-applying AI to an existing task.
 DO NOT discard, replace, or invent completely new unrelated steps.
 Use their existing input as primary context:
@@ -216,7 +225,17 @@ ${subtasksToConsider.map((s: any, i: number) => {
      * "weekly" or "weekly_on": for tasks on specific days (e.g., trash night, laundry day, gym on Mon/Wed/Fri). Include "repeatDays" as array of day numbers where 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat.
      * "none": for one-off tasks (e.g., file taxes, call landlord, buy birthday gift).
 
-4. OPTIMAL SUBTASK GRANULARITY:
+4. DATE & TIME EXTRACTION (CRITICAL):
+   - If the task title or notes contains a relative or explicit date (e.g. "tomorrow", "tmrw", "today", "tonight", "this Friday", "next Tuesday", "in 2 days", "on Aug 20", "next week"):
+     * Calculate the EXACT target ISO date string YYYY-MM-DD for "scheduledDate" using Today (${todayStr}) as reference. (e.g. if today is ${todayStr} and task is "clean room tomorrow", scheduledDate MUST be the ISO date for tomorrow).
+     * Strip/remove the date words ("tomorrow", "next Monday", etc.) from the returned "title" so the title is clean (e.g. "🧹 Clean bedroom").
+   - If the task title or notes contains a specific time of day (e.g. "at 3pm", "10:30am", "5:00 PM", "14:00"):
+     * Extract "scheduledTime" in 24-hour "HH:MM" format (e.g. "15:00", "10:30").
+     * Strip the time words from the returned "title".
+   - If no specific date is mentioned or implied, return null for "scheduledDate".
+   - If no specific time is mentioned, return null for "scheduledTime".
+
+5. OPTIMAL SUBTASK GRANULARITY:
    - Autonomously determine the ideal breakdown depth and micro-step durations based on the task complexity and executive load:
      * Simple routine/habit: 3-4 bite-sized steps (1-5 min each).
      * Standard tasks: 4-6 clear, sequential action steps (5-10 min each).
@@ -235,11 +254,19 @@ ${context ? `User Life Context: "${context}"` : ""}`;
           properties: {
             title: {
               type: Type.STRING,
-              description: "Rewritten, clean action title prefixed with a relevant emoji",
+              description: "Rewritten, clean action title prefixed with a relevant emoji, with date words stripped out",
             },
             category: {
               type: Type.STRING,
               description: "Category identifier matching one of the available categories",
+            },
+            scheduledDate: {
+              type: Type.STRING,
+              description: "Target ISO date YYYY-MM-DD (e.g. 2026-08-17) if a date like tomorrow or Friday was mentioned, or null",
+            },
+            scheduledTime: {
+              type: Type.STRING,
+              description: "Time in 24-hour HH:MM format if mentioned (e.g. 15:00), or null",
             },
             repeatType: {
               type: Type.STRING,
@@ -295,7 +322,7 @@ ${context ? `User Life Context: "${context}"` : ""}`;
   // AI Brain Dump Extraction Endpoint
   app.post("/api/ai/braindump", async (req, res) => {
     try {
-      const { text: rawText, context = "" } = req.body;
+      const { text: rawText, context = "", currentDate = "" } = req.body;
 
       if (!rawText || typeof rawText !== "string" || !rawText.trim()) {
         return res.status(400).json({ error: "Brain dump text is required" });
@@ -309,7 +336,14 @@ ${context ? `User Life Context: "${context}"` : ""}`;
         });
       }
 
+      const todayStr = currentDate && /^\d{4}-\d{2}-\d{2}$/.test(currentDate)
+        ? currentDate
+        : new Date().toISOString().split("T")[0];
+      const todayDateObj = new Date(todayStr + "T12:00:00Z");
+      const todayDayName = todayDateObj.toLocaleDateString("en-US", { weekday: "long" });
+
       const prompt = `You are Remember, an executive function and task assistant.
+Current Date Reference (Today): ${todayStr} (${todayDayName})
 The user has poured out an unstructured "brain dump" of thoughts, to-dos, or voice transcripts.
 Extract distinct, concrete, actionable tasks from this text.
 
@@ -323,10 +357,12 @@ Rules:
 1. Extract distinct actionable tasks.
 2. Silently ignore pure emotional venting or non-actionable remarks that have no task attached.
 3. Merge duplicate or redundant thoughts into clean, concise tasks.
-4. Each task title must start with an active imperative verb and be concise (under 8 words).
+4. Each task title must start with an active imperative verb and be concise (under 8 words). Remove date/time words from title.
 5. Categorize each into: "work", "personal", "health", "errands", "study", or "other".
-6. Provide a realistic time estimate in minutes (estMinutes).
-7. Optionally include 2-4 starting subtasks if obvious.`;
+6. If a task mentions a relative date (e.g. tomorrow, on Friday, next Monday), calculate "scheduledDate" as ISO date YYYY-MM-DD based on Today (${todayStr}).
+7. If a time is mentioned (e.g. at 3pm), provide "scheduledTime" as HH:MM.
+8. Provide a realistic time estimate in minutes (estMinutes).
+9. Optionally include 2-4 starting subtasks if obvious.`;
 
       const { response } = await generateGeminiContent(ai, prompt, {
         responseMimeType: "application/json",
@@ -337,11 +373,19 @@ Rules:
             properties: {
               title: {
                 type: Type.STRING,
-                description: "Concise actionable title starting with a verb",
+                description: "Concise actionable title starting with a verb, without date words",
               },
               category: {
                 type: Type.STRING,
                 description: "work, personal, health, errands, study, or other",
+              },
+              scheduledDate: {
+                type: Type.STRING,
+                description: "ISO date YYYY-MM-DD if mentioned e.g. tomorrow, or null",
+              },
+              scheduledTime: {
+                type: Type.STRING,
+                description: "HH:MM format if mentioned e.g. 15:00, or null",
               },
               estimatedMinutes: {
                 type: Type.INTEGER,

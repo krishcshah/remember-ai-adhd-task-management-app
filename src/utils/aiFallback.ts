@@ -135,31 +135,129 @@ export function detectRepeatPattern(text: string): { repeatType: RepeatType; rep
   return { repeatType: 'none' };
 }
 
+// Helper to detect date and time from natural language
+export function detectScheduledDateAndTime(
+  text: string,
+  baseDateIso?: string
+): {
+  scheduledDate: string | null;
+  scheduledTime: string | null;
+  cleanedText: string;
+} {
+  const base = baseDateIso && /^\d{4}-\d{2}-\d{2}$/.test(baseDateIso)
+    ? new Date(baseDateIso + 'T12:00:00')
+    : new Date();
+
+  let scheduledDate: string | null = null;
+  let scheduledTime: string | null = null;
+  let cleaned = text;
+
+  const lower = text.toLowerCase();
+
+  // 1. Time detection (e.g. "at 3pm", "at 10:30am", "5pm", "14:00")
+  const timeRegex = /\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(?:at\s+)?(\d{1,2}):(\d{2})\b/i;
+  const timeMatch = text.match(timeRegex);
+  if (timeMatch) {
+    if (timeMatch[3]) {
+      // 12-hour AM/PM
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+      const isPm = timeMatch[3].toLowerCase() === 'pm';
+      if (isPm && hours < 12) hours += 12;
+      if (!isPm && hours === 12) hours = 0;
+      scheduledTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    } else if (timeMatch[4] && timeMatch[5]) {
+      // 24-hour HH:MM
+      const hours = parseInt(timeMatch[4], 10);
+      const minutes = parseInt(timeMatch[5], 10);
+      if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        scheduledTime = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      }
+    }
+    if (scheduledTime) {
+      cleaned = cleaned.replace(timeMatch[0], ' ');
+    }
+  }
+
+  // 2. Date detection
+  if (/\b(?:tomorrow|tmrw)\b/i.test(lower)) {
+    const d = new Date(base.getTime() + 86400000);
+    scheduledDate = d.toISOString().split('T')[0];
+    cleaned = cleaned.replace(/\b(?:tomorrow|tmrw)\b/gi, ' ');
+  } else if (/\b(?:today|tonight|this morning|this afternoon|this evening)\b/i.test(lower)) {
+    scheduledDate = base.toISOString().split('T')[0];
+    cleaned = cleaned.replace(/\b(?:today|tonight|this morning|this afternoon|this evening)\b/gi, ' ');
+  } else {
+    // Check for "in X days"
+    const inDaysMatch = lower.match(/\bin\s+(\d+)\s+days?\b/);
+    if (inDaysMatch) {
+      const daysToAdd = parseInt(inDaysMatch[1], 10);
+      const d = new Date(base.getTime() + daysToAdd * 86400000);
+      scheduledDate = d.toISOString().split('T')[0];
+      cleaned = cleaned.replace(/\bin\s+\d+\s+days?\b/gi, ' ');
+    } else {
+      // Check for day of week: (next/this/on) (monday|tuesday|...)
+      const dayMap: Record<string, number> = {
+        sunday: 0, sun: 0,
+        monday: 1, mon: 1,
+        tuesday: 2, tue: 2, tues: 2,
+        wednesday: 3, wed: 3,
+        thursday: 4, thu: 4, thur: 4, thurs: 4,
+        friday: 5, fri: 5,
+        saturday: 6, sat: 6,
+      };
+
+      const dayMatch = lower.match(/\b(?:next|this|on)?\s*(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b/);
+      if (dayMatch && dayMap[dayMatch[1]] !== undefined) {
+        const targetDay = dayMap[dayMatch[1]];
+        const currentDay = base.getDay();
+        let diff = (targetDay - currentDay + 7) % 7;
+        if (diff === 0) diff = 7; // Next occurrence
+        const d = new Date(base.getTime() + diff * 86400000);
+        scheduledDate = d.toISOString().split('T')[0];
+        cleaned = cleaned.replace(dayMatch[0], ' ');
+      }
+    }
+  }
+
+  // Clean up remaining whitespace and dangling prepositions
+  cleaned = cleaned
+    .replace(/\b(?:by|on|at|for|due)\s*$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { scheduledDate, scheduledTime, cleanedText: cleaned };
+}
+
 // Fallback Task Breakdown heuristic
 export function fallbackBreakdown(
   title: string,
   difficulty?: 1 | 2 | 3,
   _notes?: string,
   suggestedCategory?: TaskCategory,
-  existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>
+  existingSubtasks?: Array<{ title: string; estimatedMinutes?: number; estMinutes?: number }>,
+  baseDateIso?: string
 ): {
   title: string;
   category: TaskCategory;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
   repeatType: RepeatType;
   repeatDays?: number[];
   granularity: 1 | 2 | 3;
   estimatedMinutes: number;
   subtasks: { title: string; estimatedMinutes: number }[];
 } {
+  const { scheduledDate, scheduledTime, cleanedText } = detectScheduledDateAndTime(title, baseDateIso);
   const category = suggestedCategory || detectCategory(title);
-  const cleanTitle = title.replace(/^[\p{Emoji}\s]+/u, '').trim();
+  const rawNoEmoji = (cleanedText || title).replace(/^[\p{Emoji}\s]+/u, '').trim();
   const emoji = detectEmoji(title);
-  const polishedTitle = `${emoji} ${cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)}`;
+  const polishedTitle = `${emoji} ${rawNoEmoji.charAt(0).toUpperCase() + rawNoEmoji.slice(1)}`;
   
   const repeatInfo = detectRepeatPattern(title);
   
   // Decide granularity: if explicitly provided use it, otherwise decide based on length/keywords
-  const chosenDifficulty: 1 | 2 | 3 = difficulty || (cleanTitle.length > 30 || /tax|report|project|build|clean entire/i.test(cleanTitle) ? 2 : 1);
+  const chosenDifficulty: 1 | 2 | 3 = difficulty || (rawNoEmoji.length > 30 || /tax|report|project|build|clean entire/i.test(rawNoEmoji) ? 2 : 1);
 
   let subtasks: { title: string; estimatedMinutes: number }[] = [];
 
@@ -186,15 +284,15 @@ export function fallbackBreakdown(
     if (chosenDifficulty === 1) {
       // 3 bite-size micro-steps to overcome initiation freeze
       subtasks = [
-        { title: `Set up tools & clear space for "${cleanTitle}"`, estimatedMinutes: 3 },
+        { title: `Set up tools & clear space for "${rawNoEmoji}"`, estimatedMinutes: 3 },
         { title: `Take the first immediate 5-minute action`, estimatedMinutes: 7 },
-        { title: `Review and wrap up "${cleanTitle}"`, estimatedMinutes: 5 },
+        { title: `Review and wrap up "${rawNoEmoji}"`, estimatedMinutes: 5 },
       ];
     } else if (chosenDifficulty === 3) {
       // 6-7 detailed micro-steps for overwhelming tasks
       subtasks = [
         { title: `Clear desk & silence notifications`, estimatedMinutes: 3 },
-        { title: `Gather all links, notes, and requirements for "${cleanTitle}"`, estimatedMinutes: 7 },
+        { title: `Gather all links, notes, and requirements for "${rawNoEmoji}"`, estimatedMinutes: 7 },
         { title: `Draft a quick outline or starting point`, estimatedMinutes: 10 },
         { title: `Execute the core chunk of work`, estimatedMinutes: 15 },
         { title: `Take a 2-minute posture check & review progress`, estimatedMinutes: 5 },
@@ -204,7 +302,7 @@ export function fallbackBreakdown(
     } else {
       // Normal 4-5 balanced steps
       subtasks = [
-        { title: `Prepare tools and locate materials for "${cleanTitle}"`, estimatedMinutes: 5 },
+        { title: `Prepare tools and locate materials for "${rawNoEmoji}"`, estimatedMinutes: 5 },
         { title: `Begin the primary task action`, estimatedMinutes: 12 },
         { title: `Refine, finish up, and check details`, estimatedMinutes: 8 },
         { title: `Save/file and close out`, estimatedMinutes: 5 },
@@ -217,6 +315,8 @@ export function fallbackBreakdown(
   return {
     title: polishedTitle,
     category,
+    scheduledDate: scheduledDate || null,
+    scheduledTime: scheduledTime || null,
     repeatType: repeatInfo.repeatType,
     repeatDays: repeatInfo.repeatDays,
     granularity: chosenDifficulty,
@@ -226,9 +326,11 @@ export function fallbackBreakdown(
 }
 
 // Fallback Brain Dump extraction
-export function fallbackBrainDump(text: string): {
+export function fallbackBrainDump(text: string, baseDateIso?: string): {
   title: string;
   category: TaskCategory;
+  scheduledDate?: string | null;
+  scheduledTime?: string | null;
   estimatedMinutes: number;
   subtasks?: { title: string; estimatedMinutes: number }[];
 }[] {
@@ -237,6 +339,8 @@ export function fallbackBrainDump(text: string): {
       {
         title: 'Quick brainstormed task',
         category: 'other',
+        scheduledDate: null,
+        scheduledTime: null,
         estimatedMinutes: 15,
         subtasks: [
           { title: 'Start first step', estimatedMinutes: 5 },
@@ -253,11 +357,14 @@ export function fallbackBrainDump(text: string): {
     .filter((l) => l.length > 1 && !/^(and|also|then|um|uh|like|so|plus|next)$/i.test(l));
 
   if (cleanLines.length === 0) {
-    const fallbackTitle = text.trim().slice(0, 45) || 'Quick brainstormed task';
+    const { scheduledDate, scheduledTime, cleanedText } = detectScheduledDateAndTime(text.trim(), baseDateIso);
+    const fallbackTitle = cleanedText.slice(0, 45) || 'Quick brainstormed task';
     return [
       {
         title: fallbackTitle,
         category: detectCategory(text),
+        scheduledDate: scheduledDate || null,
+        scheduledTime: scheduledTime || null,
         estimatedMinutes: 20,
         subtasks: [
           { title: `Begin first step of ${fallbackTitle.slice(0, 25)}`, estimatedMinutes: 5 },
@@ -269,12 +376,15 @@ export function fallbackBrainDump(text: string): {
 
   return cleanLines.map((line) => {
     // Clean leading verbs or punctuation
-    const title = line.replace(/^[\s,.\-•–—*#\d\)]+/, '').trim() || line.trim();
-    const category = detectCategory(title);
-    const shortTitle = title.length > 70 ? title.slice(0, 67) + '...' : title;
+    const trimmed = line.replace(/^[\s,.\-•–—*#\d\)]+/, '').trim() || line.trim();
+    const { scheduledDate, scheduledTime, cleanedText } = detectScheduledDateAndTime(trimmed, baseDateIso);
+    const category = detectCategory(trimmed);
+    const shortTitle = (cleanedText || trimmed).length > 70 ? (cleanedText || trimmed).slice(0, 67) + '...' : (cleanedText || trimmed);
     return {
       title: shortTitle,
       category: category || 'other',
+      scheduledDate: scheduledDate || null,
+      scheduledTime: scheduledTime || null,
       estimatedMinutes: 15,
       subtasks: [
         { title: `Start first step of ${shortTitle.slice(0, 30)}`, estimatedMinutes: 5 },

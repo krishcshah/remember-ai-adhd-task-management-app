@@ -14,6 +14,7 @@ import {
   Repeat,
 } from 'lucide-react';
 import { getTodayDateString } from '../utils/storage';
+import { detectScheduledDateAndTime } from '../utils/aiFallback';
 
 const DAYS_OF_WEEK = [
   { id: 1, label: 'Mon' },
@@ -62,6 +63,8 @@ export const CaptureModal: React.FC = () => {
     Array<{
       title: string;
       category: TaskCategory;
+      scheduledDate?: string | null;
+      scheduledTime?: string | null;
       estimatedMinutes: number;
       subtasks?: { title: string; estimatedMinutes: number }[];
     }>
@@ -132,15 +135,20 @@ export const CaptureModal: React.FC = () => {
   // Direct Save (Instant 0ms save without waiting for AI)
   const handleDirectSave = () => {
     if (!title.trim()) return;
-    const cleanTitle = title.trim();
+    
+    // Quick heuristic date check from title
+    const { scheduledDate: detectedDate, scheduledTime: detectedTime, cleanedText } = detectScheduledDateAndTime(title.trim(), getTodayDateString());
+    const cleanTitle = cleanedText || title.trim();
     const isDaily = repeatType === 'daily';
+    const finalDate = detectedDate !== null ? detectedDate : (isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate);
+    const finalTime = (detectedTime || scheduledTime).trim() || null;
 
     addTask({
       title: cleanTitle,
       category,
       estMinutes: estTotalMinutes || 15,
-      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
-      scheduledTime: scheduledTime.trim() || null,
+      scheduledDate: finalDate,
+      scheduledTime: finalTime,
       repeatDaily: isDaily,
       repeatType,
       repeatDays: repeatType === 'weekly_on' ? repeatDays : undefined,
@@ -170,6 +178,8 @@ export const CaptureModal: React.FC = () => {
     let finalRepeatType = repeatType;
     let finalRepeatDays = repeatDays;
     let finalSubtasks = subtasks;
+    let finalScheduledDate = scheduledDate;
+    let finalScheduledTime = scheduledTime.trim() || null;
 
     try {
       const existingSubs = subtasks
@@ -186,6 +196,12 @@ export const CaptureModal: React.FC = () => {
         if (res.title) finalTitle = res.title;
         if (res.category) finalCategory = res.category;
         if (res.estimatedMinutes) finalEstMinutes = res.estimatedMinutes;
+        if (res.scheduledDate !== undefined && res.scheduledDate !== null) {
+          finalScheduledDate = res.scheduledDate;
+        }
+        if (res.scheduledTime !== undefined && res.scheduledTime !== null) {
+          finalScheduledTime = res.scheduledTime;
+        }
         if (res.repeatType) {
           finalRepeatType = res.repeatType;
           if (res.repeatType === 'weekly_on' && Array.isArray(res.repeatDays) && res.repeatDays.length > 0) {
@@ -201,9 +217,19 @@ export const CaptureModal: React.FC = () => {
             estMinutes: s.estimatedMinutes,
           }));
         }
+      } else {
+        // AI timed out - fallback to local heuristic date parser
+        const { scheduledDate: fallbackDate, scheduledTime: fallbackTime, cleanedText } = detectScheduledDateAndTime(title, getTodayDateString());
+        if (fallbackDate) finalScheduledDate = fallbackDate;
+        if (fallbackTime) finalScheduledTime = fallbackTime;
+        if (cleanedText) finalTitle = cleanedText;
       }
     } catch (err) {
       console.warn('AI breakdown fell back gracefully on save:', err);
+      const { scheduledDate: fallbackDate, scheduledTime: fallbackTime, cleanedText } = detectScheduledDateAndTime(title, getTodayDateString());
+      if (fallbackDate) finalScheduledDate = fallbackDate;
+      if (fallbackTime) finalScheduledTime = fallbackTime;
+      if (cleanedText) finalTitle = cleanedText;
     }
 
     const isDaily = finalRepeatType === 'daily';
@@ -212,8 +238,8 @@ export const CaptureModal: React.FC = () => {
       title: finalTitle,
       category: finalCategory,
       estMinutes: finalEstMinutes,
-      scheduledDate: isDaily ? (scheduledDate || getTodayDateString()) : scheduledDate,
-      scheduledTime: scheduledTime.trim() || null,
+      scheduledDate: isDaily ? (finalScheduledDate || getTodayDateString()) : finalScheduledDate,
+      scheduledTime: finalScheduledTime,
       repeatDaily: isDaily,
       repeatType: finalRepeatType,
       repeatDays: finalRepeatType === 'weekly_on' ? finalRepeatDays : undefined,
@@ -262,8 +288,8 @@ export const CaptureModal: React.FC = () => {
         title: String(t.title).trim(),
         category: (t.category as TaskCategory) || 'other',
         estMinutes: Math.max(1, Number(t.estimatedMinutes) || 15),
-        scheduledDate: targetDate,
-        scheduledTime: null,
+        scheduledDate: t.scheduledDate !== undefined && t.scheduledDate !== null ? t.scheduledDate : targetDate,
+        scheduledTime: t.scheduledTime || null,
         status: 'todo' as const,
         subtasks: Array.isArray(t.subtasks)
           ? t.subtasks.map((st, sidx) => ({
