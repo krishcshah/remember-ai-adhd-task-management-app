@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { Task } from '../types';
+import { Task, CATEGORIES, getCategoryInfo } from '../types';
 import {
   ChevronLeft,
   ChevronRight,
@@ -17,6 +17,8 @@ import {
   Sparkles,
   Brain,
   SlidersHorizontal,
+  Check,
+  Filter,
 } from 'lucide-react';
 import { getTodayDateString, isTaskScheduledForDate, formatLocalDateToIso } from '../utils/storage';
 import { TaskBriefModal } from './TaskBriefModal';
@@ -34,6 +36,8 @@ export const CalendarView: React.FC = () => {
   } = useTaskContext();
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -110,15 +114,47 @@ export const CalendarView: React.FC = () => {
     isTaskScheduledForDate(t, selectedDate)
   );
 
-  const pendingTasks = scheduledForSelected.filter((t) => t.status === 'todo');
-  const completedTasks = scheduledForSelected.filter((t) => t.status === 'done');
+  const allPendingTasks = scheduledForSelected.filter((t) => t.status === 'todo');
+  const allCompletedTasks = scheduledForSelected.filter((t) => t.status === 'done');
+
+  // Filter tasks by selected category
+  const pendingTasks =
+    selectedCategory === 'all'
+      ? allPendingTasks
+      : allPendingTasks.filter(
+          (t) => (t.category || 'other').toLowerCase() === selectedCategory.toLowerCase()
+        );
+
+  const completedTasks =
+    selectedCategory === 'all'
+      ? allCompletedTasks
+      : allCompletedTasks.filter(
+          (t) => (t.category || 'other').toLowerCase() === selectedCategory.toLowerCase()
+        );
+
+  // Category counts breakdown for the selected date
+  const categoryCounts = React.useMemo(() => {
+    const counts: Record<string, number> = { all: allPendingTasks.length };
+    CATEGORIES.forEach((c) => {
+      counts[c.id] = allPendingTasks.filter(
+        (t) => (t.category || 'other').toLowerCase() === c.id.toLowerCase()
+      ).length;
+    });
+    return counts;
+  }, [allPendingTasks]);
 
   // Unscheduled tasks (Brain dump inbox)
   const unscheduledTasks = tasks.filter(
-    (t) => !t.repeatDaily && t.repeatType !== 'daily' && t.repeatType !== 'weekly' && t.repeatType !== 'weekly_on' && !t.scheduledDate && t.status === 'todo'
+    (t) =>
+      !t.repeatDaily &&
+      t.repeatType !== 'daily' &&
+      t.repeatType !== 'weekly' &&
+      t.repeatType !== 'weekly_on' &&
+      !t.scheduledDate &&
+      t.status === 'todo'
   );
 
-  // Total uncompleted minutes left for today
+  // Total uncompleted minutes left for the filtered tasks
   const minutesLeft = pendingTasks.reduce((acc, t) => acc + (t.estMinutes || 0), 0);
 
   // Month dates generator using local dates & monthOffset
@@ -385,16 +421,147 @@ export const CalendarView: React.FC = () => {
         </div>
       )}
 
-      {/* Task Status & Time Left Header */}
-      <div className="flex items-center justify-between px-1 pt-1">
-        <div className="flex items-center gap-1.5">
-          <span className="text-xs font-bold text-stone-800 dark:text-stone-200">
-            {pendingTasks.length} {pendingTasks.length === 1 ? 'task' : 'tasks'}
-          </span>
+      {/* Task Status & Category Filter Pill */}
+      <div className="flex items-center justify-between px-1 pt-1 relative z-20">
+        <div className="relative">
+          {/* Category Filter Pill Button */}
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsCategoryMenuOpen((prev) => !prev)}
+            id="task-category-filter-pill"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-2xs transition-all cursor-pointer select-none ${
+              selectedCategory !== 'all'
+                ? 'bg-teal-50 dark:bg-teal-950/70 border-teal-300 dark:border-teal-700/70 text-teal-900 dark:text-teal-200'
+                : 'bg-white dark:bg-stone-900 border-stone-200/90 dark:border-stone-800 text-stone-800 dark:text-stone-200 hover:border-teal-600/40 hover:bg-stone-50 dark:hover:bg-stone-800/60'
+            }`}
+            title="Filter tasks by category"
+            aria-label="Filter tasks by category"
+          >
+            {selectedCategory === 'all' ? (
+              <>
+                <span className="font-display font-bold">All Tasks</span>
+                <span className="font-mono text-[11px] px-1.5 py-0.2 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 font-semibold">
+                  {allPendingTasks.length}
+                </span>
+              </>
+            ) : (
+              <>
+                <span>{getCategoryInfo(selectedCategory).emoji}</span>
+                <span className="font-display font-bold">{getCategoryInfo(selectedCategory).label}</span>
+                <span className="font-mono text-[11px] px-1.5 py-0.2 rounded-md bg-teal-100 dark:bg-teal-900/80 text-teal-800 dark:text-teal-300 font-semibold">
+                  {pendingTasks.length}
+                </span>
+              </>
+            )}
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-stone-400 dark:text-stone-500 transition-transform duration-200 ${
+                isCategoryMenuOpen ? 'rotate-180 text-teal-600 dark:text-teal-400' : ''
+              }`}
+            />
+          </motion.button>
+
+          {/* Category Selection Dropdown Menu */}
+          <AnimatePresence>
+            {isCategoryMenuOpen && (
+              <>
+                {/* Backdrop dismiss */}
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setIsCategoryMenuOpen(false)}
+                />
+
+                {/* Dropdown Popover */}
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute left-0 top-full mt-1.5 w-56 p-1.5 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 shadow-xl z-40 space-y-0.5"
+                >
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Filter by Category
+                  </div>
+
+                  {/* All Tasks (Select All) Option */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory('all');
+                      setIsCategoryMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                      selectedCategory === 'all'
+                        ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200'
+                        : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">📋</span>
+                      <span>All Tasks</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[11px] px-1.5 py-0.2 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 font-medium">
+                        {categoryCounts['all'] || 0}
+                      </span>
+                      {selectedCategory === 'all' && (
+                        <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                      )}
+                    </div>
+                  </button>
+
+                  <div className="h-px bg-stone-100 dark:bg-stone-800 my-1" />
+
+                  {/* Individual Categories */}
+                  {CATEGORIES.map((cat) => {
+                    const count = categoryCounts[cat.id] || 0;
+                    const isSelected = selectedCategory === cat.id;
+
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategory(cat.id);
+                          setIsCategoryMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                          isSelected
+                            ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-teal-200'
+                            : 'text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{cat.emoji}</span>
+                          <span>{cat.label}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[11px] px-1.5 py-0.2 rounded-md bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 font-medium">
+                            {count}
+                          </span>
+                          {isSelected && (
+                            <Check className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
 
-        <div className="text-xs font-mono font-medium text-stone-500 dark:text-stone-400">
-          {minutesLeft}m left
+        {/* Right: Time Left & Clear filter shortcut */}
+        <div className="text-xs font-mono font-medium text-stone-500 dark:text-stone-400 flex items-center gap-1.5">
+          <span>{minutesLeft}m left</span>
+          {selectedCategory !== 'all' && (
+            <button
+              onClick={() => setSelectedCategory('all')}
+              className="text-[10px] text-teal-700 dark:text-teal-400 hover:underline font-sans font-semibold cursor-pointer ml-0.5"
+            >
+              (Clear)
+            </button>
+          )}
         </div>
       </div>
 
@@ -471,6 +638,24 @@ export const CalendarView: React.FC = () => {
                 </motion.div>
               );
             })
+          ) : selectedCategory !== 'all' ? (
+            /* Empty state specifically when a category filter is active */
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="py-8 px-4 rounded-2xl border border-stone-200 dark:border-stone-800 bg-white/70 dark:bg-stone-900/50 flex flex-col items-center justify-center text-center space-y-2.5 shadow-2xs"
+            >
+              <p className="text-xs text-stone-600 dark:text-stone-400">
+                No <span className="font-bold text-stone-800 dark:text-stone-200">{getCategoryInfo(selectedCategory).emoji} {getCategoryInfo(selectedCategory).label}</span> tasks on this date
+              </p>
+              <button
+                type="button"
+                onClick={() => setSelectedCategory('all')}
+                className="px-3.5 py-1.5 text-xs font-bold text-teal-800 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/70 rounded-xl border border-teal-200/80 dark:border-teal-800/80 hover:bg-teal-100 transition-colors cursor-pointer"
+              >
+                Show All Tasks ({allPendingTasks.length})
+              </button>
+            </motion.div>
           ) : (
             /* Clean Empty State matching reference image 3 */
             <motion.div
