@@ -24,6 +24,9 @@ import {
   Copy,
   X,
   Globe,
+  User,
+  Brain,
+  Sliders,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
@@ -45,6 +48,7 @@ export const SettingsView: React.FC = () => {
     clearAllData,
     exportDataJSON,
     importDataJSON,
+    setCurrentTab,
   } = useTaskContext();
 
   const [contextInput, setContextInput] = useState(settings.context);
@@ -110,14 +114,28 @@ export const SettingsView: React.FC = () => {
 
   return (
     <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-3 pb-24 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
-          Preferences & Context
-        </h1>
-        <p className="text-xs text-stone-500 dark:text-stone-400">
-          Tune your external executive function
-        </p>
+      {/* Header - You */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-teal-800 dark:bg-teal-700 text-white flex items-center justify-center shadow-sm">
+            <User className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold text-stone-900 dark:text-stone-100">
+              You
+            </h1>
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              {user ? (user.displayName || user.email || 'Personal ADHD System') : 'Your Personal ADHD System'}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setCurrentTab('calendar')}
+          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900 text-xs font-semibold cursor-pointer transition-colors"
+        >
+          Done
+        </button>
       </div>
 
       {/* Auto-Rollover Pending Tasks */}

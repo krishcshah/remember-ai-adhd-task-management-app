@@ -143,7 +143,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [settings, setSettings] = useState<Settings>(() => loadSettingsFromStorage());
   const [categories, setCategories] = useState<Record<string, CategoryMeta>>(() => loadCustomCategories());
-  const [currentTab, setCurrentTab] = useState<ActiveTab>('now');
+  const [currentTab, setCurrentTab] = useState<ActiveTab>('calendar');
   const [activeTaskId, setActiveTaskIdState] = useState<string | null>(() => loadActiveTaskId());
   const [focusTask, setFocusTask] = useState<Task | null>(null);
   

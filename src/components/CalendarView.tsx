@@ -1,34 +1,35 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTaskContext } from '../context/TaskContext';
-import { DEFAULT_CATEGORIES, Task, TaskCategory } from '../types';
+import { DEFAULT_CATEGORIES, Task, TaskCategory, CategoryMeta } from '../types';
 import {
   ChevronLeft,
   ChevronRight,
   Clock,
   CheckCircle2,
   Circle,
-  Play,
   Pencil,
   Inbox,
   Plus,
+  Calendar as CalendarIcon,
+  ChevronDown,
   Repeat,
-  Check,
+  Paperclip,
+  User,
 } from 'lucide-react';
 import { getTodayDateString, isTaskScheduledForDate, formatLocalDateToIso } from '../utils/storage';
+import { TaskBriefModal } from './TaskBriefModal';
 
 export const CalendarView: React.FC = () => {
   const {
     tasks,
     categories,
-    openRepeatModal,
     scheduleTaskForToday,
     scheduleTaskForDate,
-    toggleSubtask,
     setTaskDone,
-    startFocus,
     openEdit,
     openCapture,
+    setCurrentTab,
   } = useTaskContext();
 
   const [selectedDate, setSelectedDate] = useState<string>(getTodayDateString());
@@ -36,6 +37,9 @@ export const CalendarView: React.FC = () => {
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [slideDirection, setSlideDirection] = useState<number>(1);
+  const [filterCategory, setFilterCategory] = useState<string>('all');
+  const [showCompleted, setShowCompleted] = useState<boolean>(false);
+  const [briefModalTask, setBriefModalTask] = useState<Task | null>(null);
 
   const allCategories = { ...DEFAULT_CATEGORIES, ...categories };
 
@@ -66,19 +70,16 @@ export const CalendarView: React.FC = () => {
 
   const slideVariants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? 120 : -120,
+      x: direction > 0 ? 80 : -80,
       opacity: 0,
-      scale: 0.98,
     }),
     center: {
       x: 0,
       opacity: 1,
-      scale: 1,
     },
     exit: (direction: number) => ({
-      x: direction > 0 ? -120 : 120,
+      x: direction > 0 ? -80 : 80,
       opacity: 0,
-      scale: 0.98,
     }),
   };
 
@@ -111,10 +112,21 @@ export const CalendarView: React.FC = () => {
     isTaskScheduledForDate(t, selectedDate)
   );
 
+  const filteredTasks = scheduledForSelected.filter((t) => {
+    if (filterCategory === 'all') return true;
+    return t.category === filterCategory;
+  });
+
+  const pendingTasks = filteredTasks.filter((t) => t.status === 'todo');
+  const completedTasks = filteredTasks.filter((t) => t.status === 'done');
+
   // Unscheduled tasks (Brain dump inbox)
   const unscheduledTasks = tasks.filter(
     (t) => !t.repeatDaily && t.repeatType !== 'daily' && t.repeatType !== 'weekly' && t.repeatType !== 'weekly_on' && !t.scheduledDate && t.status === 'todo'
   );
+
+  // Total uncompleted minutes left for today
+  const minutesLeft = pendingTasks.reduce((acc, t) => acc + (t.estMinutes || 0), 0);
 
   // Month dates generator using local dates & monthOffset
   const getMonthData = (offset: number) => {
@@ -126,7 +138,6 @@ export const CalendarView: React.FC = () => {
     const lastDay = new Date(year, month + 1, 0);
 
     const days = [];
-    // Blank days before 1st (Monday start: 0=Mon ... 6=Sun)
     const startDayIndex = (firstDay.getDay() + 6) % 7;
     for (let i = 0; i < startDayIndex; i++) {
       days.push(null);
@@ -148,94 +159,93 @@ export const CalendarView: React.FC = () => {
 
   const { days: monthDays, monthLabel } = getMonthData(monthOffset);
 
-  // Helper to get category dots for a day
+  // Category dots for a day
   const getDotsForDate = (iso: string) => {
     const dayTasks = tasks.filter((t) => isTaskScheduledForDate(t, iso) && t.status === 'todo');
     const catList = Array.from(new Set(dayTasks.map((t) => t.category))) as TaskCategory[];
     return catList.slice(0, 3);
   };
 
-  const completedCount = scheduledForSelected.filter((t) => t.status === 'done').length;
+  // Format selected date header (e.g., "16 Aug")
+  const selectedDateObj = new Date(selectedDate + 'T12:00:00');
+  const selectedDateTitle = selectedDateObj.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
 
   return (
-    <div className="flex-1 max-w-xl mx-auto w-full px-4 pt-2 pb-20 space-y-4">
-      {/* Top Header: View Toggle & Date Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-xl font-bold text-stone-900 dark:text-stone-100">
-            Calendar
-          </h1>
-          <p className="text-[11px] text-stone-500 dark:text-stone-400">
-            Schedule & repeating routines
-          </p>
+    <div className="flex-1 max-w-xl mx-auto w-full px-3.5 pt-1 pb-24 space-y-3">
+      {/* Top Header Bar: Reference clean style */}
+      <div className="flex items-center justify-between pt-1 pb-1">
+        {/* Left icon / quick action */}
+        <button
+          onClick={handleGoToday}
+          className="p-2 rounded-xl text-teal-800 dark:text-teal-400 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+          title="Jump to Today"
+        >
+          <Paperclip className="w-5 h-5 rotate-45" />
+        </button>
+
+        {/* Center: Selected Date & View Switcher */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setViewMode(viewMode === 'week' ? 'month' : 'week')}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 hover:border-teal-700/50 shadow-2xs cursor-pointer transition-all"
+            title="Toggle Week / Month View"
+          >
+            <span className="font-display font-bold text-base text-stone-900 dark:text-stone-100">
+              {selectedDateTitle}
+            </span>
+            <CalendarIcon className="w-4 h-4 text-teal-800 dark:text-teal-400 ml-0.5" />
+          </button>
         </div>
 
-        <div className="flex items-center gap-1 bg-stone-200/70 dark:bg-stone-800 p-1 rounded-xl">
-          <button
-            onClick={() => setViewMode('week')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              viewMode === 'week'
-                ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            Week
-          </button>
-          <button
-            onClick={() => setViewMode('month')}
-            className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-              viewMode === 'month'
-                ? 'bg-white dark:bg-stone-700 text-stone-900 dark:text-stone-100 shadow-xs'
-                : 'text-stone-600 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100'
-            }`}
-          >
-            Month
-          </button>
-        </div>
+        {/* Right: You (Profile & Settings) */}
+        <button
+          onClick={() => setCurrentTab('settings')}
+          className="p-2 rounded-xl text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200 hover:bg-stone-200/60 dark:hover:bg-stone-800 transition-colors cursor-pointer"
+          title="Open You"
+          aria-label="You"
+        >
+          <User className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Week View Day Strip (Compact Height) */}
+      {/* Week / Month Calendar Strip (Compact & Ultra Low Height) */}
       {viewMode === 'week' ? (
-        <div className="bg-white dark:bg-stone-900 rounded-2xl p-3 shadow-xs border border-stone-200/80 dark:border-stone-800">
-          {/* Week Navigation bar */}
-          <div className="flex items-center justify-between mb-2 px-1">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-stone-700 dark:text-stone-300 font-display">
-                {weekDays[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
-                {weekDays[6].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-            </div>
+        <div className="bg-transparent">
+          {/* Week Navigation controls (subtle) */}
+          <div className="flex items-center justify-between mb-1 px-1">
+            <span className="text-[11px] font-semibold text-stone-500 dark:text-stone-400">
+              {weekDays[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} –{' '}
+              {weekDays[6].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </span>
             <div className="flex items-center gap-1">
-              <motion.button
-                whileTap={{ scale: 0.85 }}
+              <button
                 onClick={handlePrevWeek}
                 aria-label="Previous week"
-                title="Previous week"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+                className="p-1 rounded-lg hover:bg-stone-200/70 dark:hover:bg-stone-800 text-stone-500 cursor-pointer"
               >
-                <ChevronLeft className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={handleGoToday}
-                className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 dark:text-teal-400 hover:underline cursor-pointer"
+                className="text-[10px] font-bold text-teal-800 dark:text-teal-400 hover:underline px-1 cursor-pointer"
               >
                 Today
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.85 }}
+              </button>
+              <button
                 onClick={handleNextWeek}
                 aria-label="Next week"
-                title="Next week"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+                className="p-1 rounded-lg hover:bg-stone-200/70 dark:hover:bg-stone-800 text-stone-500 cursor-pointer"
               >
-                <ChevronRight className="w-4 h-4" />
-              </motion.button>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          {/* 7-Day Horizontal Pills with Slide Animation & Compact Height */}
-          <div className="relative overflow-hidden min-h-[58px] touch-pan-y select-none">
+          {/* 7-Day Day Strip (Reference Image 3 Style) */}
+          <div className="relative overflow-hidden touch-pan-y select-none">
             <AnimatePresence mode="popLayout" initial={false} custom={slideDirection}>
               <motion.div
                 key={weekOffset}
@@ -244,24 +254,15 @@ export const CalendarView: React.FC = () => {
                 initial="enter"
                 animate="center"
                 exit="exit"
-                transition={{
-                  x: { type: 'spring', stiffness: 350, damping: 32 },
-                  opacity: { duration: 0.18 },
-                  scale: { duration: 0.18 },
-                }}
+                transition={{ duration: 0.16 }}
                 drag="x"
                 dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={0.18}
+                dragElastic={0.15}
                 onDragEnd={(_, info) => {
-                  const swipe = info.offset.x;
-                  const velocity = info.velocity.x;
-                  if (swipe < -40 || velocity < -250) {
-                    handleNextWeek();
-                  } else if (swipe > 40 || velocity > 250) {
-                    handlePrevWeek();
-                  }
+                  if (info.offset.x < -35) handleNextWeek();
+                  else if (info.offset.x > 35) handlePrevWeek();
                 }}
-                className="grid grid-cols-7 gap-1 cursor-grab active:cursor-grabbing w-full"
+                className="grid grid-cols-7 gap-1.5 cursor-grab active:cursor-grabbing w-full"
               >
                 {weekDays.map((d) => {
                   const isSelected = d.iso === selectedDate;
@@ -270,26 +271,29 @@ export const CalendarView: React.FC = () => {
                   return (
                     <motion.button
                       key={d.iso}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.95 }}
+                      whileTap={{ scale: 0.94 }}
                       onClick={() => setSelectedDate(d.iso)}
-                      className={`flex flex-col items-center py-1.5 px-0.5 rounded-xl transition-all cursor-pointer ${
+                      className={`flex flex-col items-center py-2 px-1 rounded-2xl transition-all cursor-pointer ${
                         isSelected
-                          ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-xs'
+                          ? 'bg-teal-800 dark:bg-teal-700 text-white shadow-sm'
                           : d.isToday
-                          ? 'bg-teal-50 dark:bg-teal-950/50 text-teal-900 dark:text-teal-200 border border-teal-200 dark:border-teal-800'
-                          : 'bg-stone-50 dark:bg-stone-900/60 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/50 dark:border-stone-800'
+                          ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-950 dark:text-teal-200 border border-teal-300 dark:border-teal-800'
+                          : 'bg-white/80 dark:bg-stone-900/80 text-stone-700 dark:text-stone-300 hover:bg-white dark:hover:bg-stone-800 border border-stone-200/60 dark:border-stone-800/80'
                       }`}
                     >
-                      <span className="text-[10px] font-medium opacity-80 uppercase tracking-tight">
+                      <span
+                        className={`text-[10px] font-medium tracking-tight ${
+                          isSelected ? 'text-teal-100' : 'text-stone-500 dark:text-stone-400'
+                        }`}
+                      >
                         {d.dayName}
                       </span>
                       <span className="font-mono text-sm font-bold my-0.5">
                         {d.dayNumber}
                       </span>
 
-                      {/* Category dot indicators */}
-                      <div className="flex items-center gap-0.5 h-1.5">
+                      {/* Micro category dots */}
+                      <div className="flex items-center gap-0.5 h-1">
                         {dots.map((cat, i) => {
                           const dotColor = allCategories[cat]?.dotColor || '#78716c';
                           return (
@@ -311,39 +315,33 @@ export const CalendarView: React.FC = () => {
           </div>
         </div>
       ) : (
-        /* Month Grid View (Compact Height with Month Navigation) */
+        /* Month View (Compact) */
         <div className="bg-white dark:bg-stone-900 rounded-2xl p-3 shadow-xs border border-stone-200/80 dark:border-stone-800 space-y-2">
-          {/* Month Navigation bar */}
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-stone-800 dark:text-stone-200 font-display">
               {monthLabel}
             </span>
             <div className="flex items-center gap-1">
-              <motion.button
-                whileTap={{ scale: 0.85 }}
+              <button
                 onClick={handlePrevMonth}
                 aria-label="Previous month"
-                title="Previous month"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer"
               >
-                <ChevronLeft className="w-4 h-4" />
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <button
                 onClick={handleGoToday}
                 className="px-2 py-0.5 text-[11px] font-semibold text-teal-800 dark:text-teal-400 hover:underline cursor-pointer"
               >
                 Today
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.85 }}
+              </button>
+              <button
                 onClick={handleNextMonth}
                 aria-label="Next month"
-                title="Next month"
-                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer transition-colors"
+                className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-600 dark:text-stone-400 cursor-pointer"
               >
-                <ChevronRight className="w-4 h-4" />
-              </motion.button>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
@@ -357,7 +355,7 @@ export const CalendarView: React.FC = () => {
 
           <div className="grid grid-cols-7 gap-1">
             {monthDays.map((d, idx) => {
-              if (!d) return <div key={`empty-${idx}`} className="h-8 sm:h-9" />;
+              if (!d) return <div key={`empty-${idx}`} className="h-7" />;
               const isSelected = d.iso === selectedDate;
               const dots = getDotsForDate(d.iso);
 
@@ -366,28 +364,25 @@ export const CalendarView: React.FC = () => {
                   key={d.iso}
                   whileTap={{ scale: 0.92 }}
                   onClick={() => setSelectedDate(d.iso)}
-                  className={`h-8 sm:h-9 rounded-xl flex flex-col items-center justify-center p-0.5 transition-all cursor-pointer ${
+                  className={`h-7 rounded-lg flex flex-col items-center justify-center p-0.5 transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-teal-800 text-white font-bold'
                       : d.isToday
-                      ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 border border-teal-300 dark:border-teal-800'
+                      ? 'bg-teal-50 dark:bg-teal-950/40 text-teal-900 dark:text-teal-200 border border-teal-300'
                       : 'hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-700 dark:text-stone-300'
                   }`}
                 >
                   <span className="font-mono text-xs leading-none">{d.dayNumber}</span>
                   <div className="flex gap-0.5 mt-0.5">
-                    {dots.map((cat, i) => {
-                      const dotColor = allCategories[cat]?.dotColor || '#78716c';
-                      return (
-                        <span
-                          key={i}
-                          className="w-1 h-1 rounded-full"
-                          style={{
-                            backgroundColor: isSelected ? '#FDE047' : dotColor,
-                          }}
-                        />
-                      );
-                    })}
+                    {dots.map((cat, i) => (
+                      <span
+                        key={i}
+                        className="w-1 h-1 rounded-full"
+                        style={{
+                          backgroundColor: isSelected ? '#FDE047' : allCategories[cat]?.dotColor || '#78716c',
+                        }}
+                      />
+                    ))}
                   </div>
                 </motion.button>
               );
@@ -396,258 +391,239 @@ export const CalendarView: React.FC = () => {
         </div>
       )}
 
-      {/* Scheduled Tasks for Selected Day */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="font-display font-bold text-sm text-stone-800 dark:text-stone-200 flex items-center gap-2">
-            <span>Tasks</span>
-            <span className="text-xs font-normal text-stone-500 dark:text-stone-400">
-              ({completedCount}/{scheduledForSelected.length} completed •{' '}
-              {new Date(selectedDate + 'T12:00:00').toLocaleDateString('en-US', {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-              })})
-            </span>
-          </h2>
-
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => openCapture('quick')}
-            className="text-xs font-semibold text-teal-800 dark:text-teal-400 hover:underline flex items-center gap-1 cursor-pointer"
+      {/* Task Filters & Time Left Banner (Reference Image 3 Style) */}
+      <div className="flex items-center justify-between px-1 pt-1">
+        <div className="relative inline-block">
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="appearance-none bg-stone-200/70 dark:bg-stone-800 text-stone-800 dark:text-stone-200 text-xs font-semibold py-1 pl-2.5 pr-6 rounded-xl border-none focus:ring-1 focus:ring-teal-700 cursor-pointer"
           >
-            <Plus className="w-3.5 h-3.5" /> Add Task
-          </motion.button>
+            <option value="all">all tasks</option>
+            {(Object.values(allCategories) as CategoryMeta[]).map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 text-stone-500 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
 
-        <AnimatePresence mode="wait">
-          {scheduledForSelected.length > 0 ? (
-            <motion.div
-              key={selectedDate}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18 }}
-              className="space-y-2"
-            >
-              {scheduledForSelected.map((task) => {
-                const meta = allCategories[task.category] || allCategories.other || DEFAULT_CATEGORIES.other;
-                const isDone = task.status === 'done';
+        <div className="text-xs font-mono font-medium text-stone-500 dark:text-stone-400">
+          {minutesLeft}m left
+        </div>
+      </div>
 
-                const getRepeatBadge = () => {
-                  if (task.repeatType === 'daily' || task.repeatDaily) return 'Daily';
-                  if (task.repeatType === 'weekly') return 'Weekly';
-                  if (task.repeatType === 'weekly_on' && task.repeatDays?.length) {
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    return task.repeatDays.map((d) => dayNames[d]).join(', ');
-                  }
-                  return null;
-                };
-                const repeatBadge = getRepeatBadge();
+      {/* High-Density Task List (Max Screen Real Estate, Clean Single/Two-Line Items) */}
+      <div className="space-y-1.5">
+        <AnimatePresence mode="popLayout">
+          {pendingTasks.length > 0 ? (
+            pendingTasks.map((task) => {
+              const meta = allCategories[task.category] || allCategories.personal || DEFAULT_CATEGORIES.personal;
+              const hasSubtasks = task.subtasks && task.subtasks.length > 0;
+              const completedSubs = hasSubtasks ? task.subtasks.filter((s) => s.done).length : 0;
 
-                return (
-                  <motion.div
-                    key={task.id}
-                    layout
-                    whileHover={{ scale: 1.005 }}
-                    className={`p-3.5 rounded-2xl border transition-colors flex flex-col gap-2 ${
-                      isDone
-                        ? 'bg-stone-100/70 dark:bg-stone-900/40 border-stone-200 dark:border-stone-800 opacity-70'
-                        : 'bg-white dark:bg-stone-900 border-stone-200/80 dark:border-stone-800 shadow-xs'
-                    }`}
+              return (
+                <motion.div
+                  key={task.id}
+                  layout
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.15 }}
+                  onClick={() => setBriefModalTask(task)}
+                  className="group relative bg-white dark:bg-stone-900/90 hover:bg-stone-50 dark:hover:bg-stone-800/80 border border-stone-200/80 dark:border-stone-800/80 rounded-2xl px-3 py-2.5 shadow-2xs transition-all cursor-pointer flex items-center justify-between gap-2.5"
+                >
+                  {/* Left Checkbox */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTaskDone(task.id, true);
+                    }}
+                    className="text-stone-400 hover:text-teal-600 focus:outline-none cursor-pointer shrink-0 transition-transform active:scale-90"
+                    title="Mark done"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                        <button
-                          onClick={() => setTaskDone(task.id, !isDone)}
-                          className="mt-0.5 text-stone-400 hover:text-teal-600 focus:outline-none cursor-pointer"
-                        >
-                          {isDone ? (
-                            <CheckCircle2 className="w-5 h-5 fill-teal-600 text-white" />
-                          ) : (
-                            <Circle className="w-5 h-5 text-stone-400 hover:text-teal-700" />
-                          )}
-                        </button>
+                    <Circle className="w-5 h-5 text-stone-400 hover:text-teal-600" />
+                  </button>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <p
-                              className={`font-semibold text-sm text-stone-900 dark:text-stone-100 ${
-                                isDone ? 'line-through text-stone-500 dark:text-stone-400' : ''
-                              }`}
-                            >
-                              {task.title}
-                            </p>
-                            {/* Small repeat button/badge */}
-                            <button
-                              onClick={() => openRepeatModal(task)}
-                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
-                                repeatBadge
-                                    ? 'bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300'
-                                  : 'bg-stone-100 dark:bg-stone-800 text-stone-500 hover:text-stone-700'
-                              }`}
-                              title="Configure repeat"
-                            >
-                              <Repeat className="w-2.5 h-2.5" /> {repeatBadge || 'Repeat'}
-                            </button>
-                          </div>
-
-                          <div className="flex items-center gap-2 mt-1">
-                            <span
-                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}
-                            >
-                              {meta.label}
-                            </span>
-                            <span className="text-[11px] font-mono text-stone-500 flex items-center gap-0.5">
-                              <Clock className="w-3 h-3" />
-                              {task.estMinutes}m
-                            </span>
-                            {task.scheduledTime && (
-                              <span className="text-[11px] font-mono text-stone-500">
-                                @{task.scheduledTime}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1.5">
-                        {!isDone && (
-                          <motion.button
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => startFocus(task)}
-                            className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 hover:bg-teal-100 dark:hover:bg-teal-900 text-teal-800 dark:text-teal-300 transition-colors cursor-pointer"
-                            title="Start focus"
-                          >
-                            <Play className="w-4 h-4 fill-current ml-0.5" />
-                          </motion.button>
-                        )}
-                        <motion.button
-                          whileHover={{ scale: 1.1 }}
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => openEdit(task)}
-                          className="p-2 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-colors cursor-pointer"
-                          title="Edit task"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </motion.button>
-                      </div>
+                  {/* Task Center Info (Dense & Structured) */}
+                  <div className="flex-1 min-w-0 pr-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="font-semibold text-sm text-stone-900 dark:text-stone-100 leading-snug truncate max-w-full">
+                        {task.title}
+                      </p>
                     </div>
 
-                    {/* Subtask micro status & checklist */}
-                    {task.subtasks.length > 0 && (
-                      <div className="pt-2 border-t border-stone-100 dark:border-stone-800 space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] text-stone-500">
-                          <span>
-                            {task.subtasks.filter((s) => s.done).length}/{task.subtasks.length} steps completed
-                          </span>
-                          <span className="font-mono text-[10px]">
-                            {Math.round(
-                              (task.subtasks.filter((s) => s.done).length / task.subtasks.length) * 100
-                            )}%
-                          </span>
-                        </div>
+                    {/* Inline metadata under or next to title */}
+                    <div className="flex items-center gap-2 mt-0.5 flex-wrap text-[11px]">
+                      <span className={`inline-flex items-center gap-1 font-semibold px-1.5 py-0.2 rounded-md ${meta.bgLight} ${meta.bgDark} ${meta.textColor}`}>
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: meta.dotColor }}
+                        />
+                        {meta.label}
+                      </span>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                          {task.subtasks.map((sub) => (
-                            <motion.button
-                              key={sub.id}
-                              whileTap={{ scale: 0.97 }}
-                              onClick={() => toggleSubtask(task.id, sub.id)}
-                              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-left text-xs transition-colors cursor-pointer ${
-                                sub.done
-                                  ? 'bg-stone-100 dark:bg-stone-800/40 text-stone-400 line-through'
-                                  : 'bg-stone-50 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 border border-stone-200/60 dark:border-stone-700'
-                              }`}
-                            >
-                              <span
-                                className={`w-3.5 h-3.5 rounded-md flex items-center justify-center border text-[9px] ${
-                                  sub.done
-                                    ? 'bg-teal-600 border-teal-600 text-white'
-                                    : 'border-stone-300 dark:border-stone-600'
-                                }`}
-                              >
-                                {sub.done && <Check className="w-2.5 h-2.5 stroke-[3px]" />}
-                              </span>
-                              <span className="truncate flex-1">{sub.title}</span>
-                              <span className="font-mono text-[10px] text-stone-400 shrink-0">
-                                {sub.estMinutes}m
-                              </span>
-                            </motion.button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+                      <span className="font-mono text-stone-500 dark:text-stone-400 inline-flex items-center gap-0.5">
+                        <Clock className="w-2.5 h-2.5" />
+                        {task.estMinutes}m
+                      </span>
+
+                      {task.scheduledTime && (
+                        <span className="font-mono text-teal-800 dark:text-teal-300 font-medium">
+                          @{task.scheduledTime}
+                        </span>
+                      )}
+
+                      {hasSubtasks && (
+                        <span className="text-[10px] text-stone-400 bg-stone-100 dark:bg-stone-800 px-1.5 py-0.2 rounded">
+                          {completedSubs}/{task.subtasks.length} steps
+                        </span>
+                      )}
+
+                      {(task.repeatType === 'daily' || task.repeatDaily || task.repeatType === 'weekly') && (
+                        <span className="text-teal-700 dark:text-teal-400 inline-flex items-center" title="Repeating routine">
+                          <Repeat className="w-2.5 h-2.5" />
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Edit Button */}
+                  <div className="flex items-center shrink-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(task);
+                      }}
+                      className="p-1.5 rounded-xl opacity-70 group-hover:opacity-100 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 transition-all cursor-pointer"
+                      title="Edit task"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })
           ) : (
+            /* Clean Empty State matching reference image 3 */
             <motion.div
-              key="empty"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="p-6 rounded-2xl bg-stone-50 dark:bg-stone-900/40 border border-dashed border-stone-200 dark:border-stone-800 text-center"
+              onClick={() => openCapture('quick')}
+              className="py-10 px-4 rounded-2xl border-2 border-dashed border-stone-200 dark:border-stone-800 flex flex-col items-center justify-center text-center cursor-pointer hover:border-teal-700/40 transition-colors group"
             >
-              <p className="text-xs text-stone-500 dark:text-stone-400 mb-3">
-                No tasks scheduled for this day.
+              <p className="text-xs font-semibold text-teal-900/80 dark:text-teal-300/80 group-hover:text-teal-800 dark:group-hover:text-teal-200 transition-colors">
+                tap + or click here
               </p>
-              <motion.button
-                whileHover={{ scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                onClick={() => openCapture('quick')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-800 text-white text-xs font-semibold hover:bg-teal-900 transition-colors shadow-sm cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add task for this day
-              </motion.button>
+              <p className="text-xs font-bold text-teal-950 dark:text-teal-100 mt-0.5">
+                to add tasks for this day
+              </p>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* Unscheduled Shelf (Brain Dump Tray) */}
-      <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
-        <div className="flex items-center justify-between mb-2 px-1">
-          <div className="flex items-center gap-2">
-            <Inbox className="w-4 h-4 text-stone-500" />
-            <h2 className="font-display font-bold text-xs text-stone-800 dark:text-stone-200">
+      {/* Collapsible Completed Tasks Section */}
+      {completedTasks.length > 0 && (
+        <div className="pt-2">
+          <button
+            onClick={() => setShowCompleted(!showCompleted)}
+            className="flex items-center gap-1.5 text-xs font-semibold text-stone-500 hover:text-stone-800 dark:hover:text-stone-200 cursor-pointer py-1"
+          >
+            <span>
+              {completedTasks.length} task{completedTasks.length > 1 ? 's' : ''} completed
+            </span>
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                showCompleted ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          <AnimatePresence>
+            {showCompleted && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.2 }}
+                className="space-y-1.5 pt-1.5 overflow-hidden"
+              >
+                {completedTasks.map((task) => (
+                  <div
+                    key={task.id}
+                    onClick={() => setBriefModalTask(task)}
+                    className="bg-stone-100/70 dark:bg-stone-900/40 border border-stone-200/60 dark:border-stone-800/60 rounded-2xl px-3 py-2 opacity-65 flex items-center justify-between gap-2.5 cursor-pointer"
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setTaskDone(task.id, false);
+                      }}
+                      className="text-teal-600 focus:outline-none cursor-pointer shrink-0"
+                      title="Mark uncompleted"
+                    >
+                      <CheckCircle2 className="w-5 h-5 fill-teal-600 text-white" />
+                    </button>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="line-through text-xs font-medium text-stone-500 dark:text-stone-400 truncate">
+                        {task.title}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(task);
+                      }}
+                      className="p-1 text-stone-400 hover:text-stone-600 cursor-pointer"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
+
+      {/* Unscheduled Brain Dump Shelf (Ultra Compact) */}
+      <div className="pt-2 border-t border-stone-200/80 dark:border-stone-800/80">
+        <div className="flex items-center justify-between mb-1.5 px-1">
+          <div className="flex items-center gap-1.5">
+            <Inbox className="w-3.5 h-3.5 text-stone-400" />
+            <span className="font-display font-bold text-xs text-stone-700 dark:text-stone-300">
               Unscheduled Inbox ({unscheduledTasks.length})
-            </h2>
+            </span>
           </div>
-          <span className="text-[11px] text-stone-500">Unscheduled items</span>
         </div>
 
         {unscheduledTasks.length > 0 ? (
-          <div className="space-y-2">
-            {unscheduledTasks.map((task) => (
+          <div className="space-y-1.5">
+            {unscheduledTasks.slice(0, 4).map((task) => (
               <div
                 key={task.id}
-                className="p-3 rounded-2xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between gap-3 shadow-xs"
+                onClick={() => setBriefModalTask(task)}
+                className="px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-stone-200/80 dark:border-stone-800 flex items-center justify-between gap-2 shadow-2xs cursor-pointer"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate">
-                    {task.title}
-                  </p>
-                  <span className="text-[11px] font-mono text-stone-500">
-                    ~{task.estMinutes}m
-                  </span>
-                </div>
+                <p className="text-xs font-semibold text-stone-800 dark:text-stone-200 truncate flex-1">
+                  {task.title}
+                </p>
 
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => scheduleTaskForToday(task.id)}
-                    className="px-2.5 py-1.5 rounded-xl bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-xs font-semibold hover:bg-teal-200 transition-colors cursor-pointer"
+                    className="px-2 py-1 rounded-lg bg-teal-100/80 dark:bg-teal-950 text-teal-800 dark:text-teal-300 text-[11px] font-semibold hover:bg-teal-200 transition-colors cursor-pointer"
                   >
-                    Plan for Today
+                    + Today
                   </button>
                   <button
                     onClick={() => scheduleTaskForDate(task.id, selectedDate)}
-                    className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-500 text-xs font-medium cursor-pointer"
-                    title={`Schedule for selected day (${selectedDate})`}
+                    className="p-1 rounded-lg hover:bg-stone-100 dark:hover:bg-stone-800 text-stone-400 hover:text-stone-700 text-[11px] font-medium cursor-pointer"
+                    title={`Schedule for ${selectedDate}`}
                   >
                     ➔ This day
                   </button>
@@ -655,12 +631,14 @@ export const CalendarView: React.FC = () => {
               </div>
             ))}
           </div>
-        ) : (
-          <p className="text-xs text-stone-400 italic px-1">
-            Inbox is clear. Capture ideas or tasks anytime with Quick Add or Brain Dump.
-          </p>
-        )}
+        ) : null}
       </div>
+
+      {/* Task Brief / Subtasks Modal (Popup with Blurred Backdrop) */}
+      <TaskBriefModal
+        task={briefModalTask}
+        onClose={() => setBriefModalTask(null)}
+      />
     </div>
   );
 };

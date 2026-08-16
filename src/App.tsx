@@ -60,45 +60,9 @@ const MainLayout: React.FC = () => {
       </AnimatePresence>
 
       {/* Main Content Area with Smooth View Transitions */}
-      <main className="flex-1 flex flex-col w-full max-w-xl mx-auto overflow-x-hidden pt-3 sm:pt-4">
+      <main className="flex-1 flex flex-col w-full max-w-xl mx-auto overflow-x-hidden pt-2 sm:pt-3">
         <AnimatePresence mode="wait">
-          {currentTab === 'now' && (
-            <motion.div
-              key="tab-now"
-              initial={{ opacity: 0, y: 8, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.99 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col w-full"
-            >
-              <NowView />
-            </motion.div>
-          )}
-          {currentTab === 'calendar' && (
-            <motion.div
-              key="tab-calendar"
-              initial={{ opacity: 0, y: 8, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.99 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col w-full"
-            >
-              <CalendarView />
-            </motion.div>
-          )}
-          {currentTab === 'library' && (
-            <motion.div
-              key="tab-library"
-              initial={{ opacity: 0, y: 8, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.99 }}
-              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col w-full"
-            >
-              <LibraryView />
-            </motion.div>
-          )}
-          {currentTab === 'settings' && (
+          {currentTab === 'settings' ? (
             <motion.div
               key="tab-settings"
               initial={{ opacity: 0, y: 8, scale: 0.99 }}
@@ -108,6 +72,17 @@ const MainLayout: React.FC = () => {
               className="flex-1 flex flex-col w-full"
             >
               <SettingsView />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="tab-calendar"
+              initial={{ opacity: 0, y: 8, scale: 0.99 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.99 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+              className="flex-1 flex flex-col w-full"
+            >
+              <CalendarView />
             </motion.div>
           )}
         </AnimatePresence>
