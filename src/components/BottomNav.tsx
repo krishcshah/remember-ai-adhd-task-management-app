@@ -16,15 +16,11 @@ export const BottomNav: React.FC = () => {
             onClick={() => setCurrentTab('calendar')}
             className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
               currentTab === 'calendar'
-                ? 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100/60 dark:hover:bg-stone-800/40'
+                ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-white font-bold shadow-sm'
+                : 'text-teal-800 dark:text-teal-300 hover:bg-teal-50/50 dark:hover:bg-teal-950/30'
             }`}
           >
-            <CheckSquare className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
-              currentTab === 'calendar'
-                ? 'text-stone-800 dark:text-stone-200'
-                : 'text-stone-500 dark:text-stone-400'
-            }`} />
+            <CheckSquare className="w-4.5 h-4.5 stroke-[2.2px] shrink-0 text-teal-800 dark:text-teal-300" />
             <span>Tasks</span>
           </motion.button>
         </div>
@@ -49,14 +45,14 @@ export const BottomNav: React.FC = () => {
             onClick={() => setCurrentTab('settings')}
             className={`flex items-center justify-center gap-1.5 px-4 py-2 rounded-2xl transition-all cursor-pointer font-semibold text-xs whitespace-nowrap ${
               currentTab === 'settings'
-                ? 'bg-stone-100 dark:bg-stone-800 text-stone-800 dark:text-stone-200'
-                : 'text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300 hover:bg-stone-100/60 dark:hover:bg-stone-800/40'
+                ? 'bg-teal-50 dark:bg-teal-950/70 text-teal-900 dark:text-white font-bold shadow-sm'
+                : 'text-teal-800/80 dark:text-stone-300 hover:text-teal-800 dark:hover:text-white hover:bg-teal-50/50 dark:hover:bg-teal-950/30'
             }`}
           >
             <Sparkles className={`w-4.5 h-4.5 stroke-[2.2px] shrink-0 ${
               currentTab === 'settings'
-                ? 'text-stone-800 dark:text-stone-200'
-                : 'text-stone-500 dark:text-stone-400'
+                ? 'text-teal-800 dark:text-teal-300'
+                : 'text-teal-800/80 dark:text-stone-300'
             }`} />
             <span>You</span>
           </motion.button>
